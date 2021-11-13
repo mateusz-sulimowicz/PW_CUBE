@@ -110,11 +110,36 @@ public class Cube {
 
 		public void onBeforeInspection() throws InterruptedException {
 			guard.acquire();
+			if (shouldInspectorWait()) {
+				++waitingInspectorsCount;
+				guard.release();
+				waitingInspectors.acquire();
+				// dziedziczenie ochrony
+				--waitingInspectorsCount;
+			}
 
+			++workingInspectorsCount;
+			wakeNextWaitingInspector();
 		}
 
-		public void onAfterInspection() {
-
+		public void onAfterInspection() throws InterruptedException {
+			guard.acquire();
+			--workingInspectorsCount;
+			if (workingInspectorsCount == 0) {
+				if (waitingRotatorsTotalCount > 0) {
+					// przekazanie ochrony
+					waitingRotatorsRepresentatives.release();
+				} else if (waitingInspectorsCount > 0) {
+					// przekazanie ochrony
+					waitingInspectors.release();
+				} else {
+					// nie ma kogo budzić
+					guard.release();
+				}
+			} else {
+				// nie jest ostatnim oglądającym
+				guard.release();
+			}
 		}
 
 		private boolean shouldRotatorWait(RotatorType rotatorType) {
@@ -173,16 +198,26 @@ public class Cube {
 			}
 		}
 
-
-
-		private Semaphore getRotationLayerGuard(int side, int layer) {
-
+		private boolean shouldInspectorWait() {
+			return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
 		}
 
+		private void wakeNextWaitingInspector() {
+			if (waitingInspectorsCount > 0) {
+				waitingInspectors.release();
+			} else {
+				guard.release();
+			}
+		}
 
+		private Semaphore getRotationLayerGuard(int side, int layer) {
+			if (side == 0 || side == 1 || side == 2) {
+				return rotationLayersGuards[layer];
+			} else {
+				return rotationLayersGuards[size - 1 - layer];
+			}
+		}
 
 	}
-
-
 
 }
