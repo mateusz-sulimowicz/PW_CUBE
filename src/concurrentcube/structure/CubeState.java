@@ -2,13 +2,15 @@ package concurrentcube.structure;
 
 public class CubeState {
 
+	private final static int CUBE_SIDES = 6;
+
 	CubeSideState[] sideStates;
 	int size;
 
 	public CubeState(int size) {
 		this.size = size;
-		sideStates = new CubeSideState[size];
-		for (int i = 0; i < size; ++i) {
+		sideStates = new CubeSideState[CUBE_SIDES];
+		for (int i = 0; i < CUBE_SIDES; ++i) {
 			sideStates[i] = new CubeSideState(i, size);
 		}
 	}

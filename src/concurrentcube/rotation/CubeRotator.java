@@ -69,14 +69,14 @@ public class CubeRotator {
 	private void rotateFromFront(int layer) {
 		int size = state.size();
 		int[] topRow = state.getRow(TOP, size - 1 - layer);
-		int[] leftColumn = state.getColumn(LEFT, layer);
+		int[] leftColumn = state.getColumn(LEFT, size - 1- layer);
 		int[] bottomRow = state.getRow(BOTTOM, layer);
-		int[] rightColumn = state.getColumn(RIGHT, size - 1 - layer);
+		int[] rightColumn = state.getColumn(RIGHT, layer);
 
 		state.setRow(TOP, reverse(leftColumn), size - 1 - layer);
-		state.setColumn(LEFT, bottomRow,layer);
+		state.setColumn(LEFT, bottomRow, size - 1- layer);
 		state.setRow(BOTTOM, reverse(rightColumn), layer);
-		state.setColumn(RIGHT, topRow, size - 1 - layer);
+		state.setColumn(RIGHT, topRow, layer);
 	}
 
 	private void rotateFromBack(int layer) {
@@ -114,8 +114,8 @@ public class CubeRotator {
 
 		state.setRow(FRONT, leftRow, size - 1 - layer);
 		state.setRow(RIGHT, frontRow, size - 1 - layer);
-		state.setRow(BACK, reverse(rightRow), size - 1 - layer);
-		state.setRow(LEFT, reverse(backRow), size - 1 - layer);
+		state.setRow(BACK, rightRow, size - 1 - layer);
+		state.setRow(LEFT, backRow, size - 1 - layer);
 	}
 
 	private void rotateFromLeft(int layer) {
