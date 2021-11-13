@@ -1,5 +1,8 @@
 package concurrentcube;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -205,6 +208,122 @@ public class CubeTest {
 			Assertions.assertEquals(cube.show(), LEFT1_BACK2_EXPECTED);
 		} catch (InterruptedException ignored) {
 		}
+	}
+
+	private static final int PARALLEL_ROTATORS = 1000;
+
+	@Test
+	public void shouldRotateParallelLayersConcurrently() {
+		// given
+		cube = getSolvedCube(PARALLEL_ROTATORS, 1000);
+		List<Thread> parallel = getParallelRotators(0, PARALLEL_ROTATORS);
+		List<Thread> parralelCounterClockwise = getParallelRotators(5, PARALLEL_ROTATORS);
+
+		// when
+		try {
+			startThreads(parallel, parralelCounterClockwise);
+			joinThreads(parallel, parralelCounterClockwise);
+
+			// then
+			Assertions.assertEquals(cube.show(), getSolvedCube(PARALLEL_ROTATORS, 0).show());
+		} catch (InterruptedException e) {
+			Assertions.fail();
+		}
+	}
+
+	private static final int CONCURRENT_INSPECTORS = 1000;
+
+	@Test
+	public void shouldInspectCubeConcurrently() {
+		// given
+		cube = getSolvedCube(CONCURRENT_INSPECTORS, 1000);
+		List<Thread> inspectors = getInspectors(CONCURRENT_INSPECTORS);
+
+		// when
+		try {
+			startThreads(inspectors);
+			joinThreads(inspectors);
+
+			// then
+			Assertions.assertEquals(cube.show(), getSolvedCube(CONCURRENT_INSPECTORS, 0).show());
+		} catch (InterruptedException e) {
+			Assertions.fail();
+		}
+	}
+
+
+	private List<Thread> getInspectors(int count) {
+		List<Thread> inspectors = new ArrayList<>();
+		for (int i = 0; i < count; ++i) {
+			inspectors.add(getInspectorThread());
+		}
+		return inspectors;
+	}
+
+	private Thread getInspectorThread() {
+		return new Thread(() -> {
+			try {
+				cube.show();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		});
+	}
+
+
+	private List<Thread> getParallelRotators(int side, int count) {
+		List<Thread> rotators = new ArrayList<>();
+		for (int i = 0; i < count; ++i) {
+			rotators.add(getRotatorThread(side, i));
+		}
+		return rotators;
+	}
+
+	private Thread getRotatorThread(int side, int layer) {
+		return new Thread(() -> {
+			try {
+				cube.rotate(side, layer);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		});
+	}
+
+	private void startThreads(List<Thread>... threadLists) {
+		for (var threads : threadLists) {
+			for (var thread : threads) {
+				thread.start();
+			}
+		}
+	}
+
+	private void joinThreads(List<Thread>... threadLists) throws InterruptedException {
+		for (var threads : threadLists) {
+			for (var thread : threads) {
+				thread.join();
+			}
+		}
+	}
+
+	private Cube getSolvedCube(int size, int actionTime) {
+		// rotation and inspections take actionTime milliseconds.
+		return new Cube(size,
+				(x, y) -> {
+					try {
+						Thread.sleep(actionTime);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				},
+				(x, y) -> {},
+				() -> {
+					try {
+						Thread.sleep(actionTime);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				},
+				() -> {});
 	}
 
 }
