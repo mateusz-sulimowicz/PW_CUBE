@@ -231,7 +231,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int CONCURRENT_INSPECTORS = 1000;
+	private static final int CONCURRENT_INSPECTORS = 500;
 
 	@Test
 	public void shouldInspectCubeConcurrently() {
