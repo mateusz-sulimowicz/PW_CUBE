@@ -87,6 +87,7 @@ public class Cube {
 
 
 		public void onAfterRotation(int side, int layer) throws InterruptedException {
+			getRotationLayerGuard(side, layer).release();
 			RotatorType rotatorType = RotatorType.get(side);
 
 			guard.acquire();
