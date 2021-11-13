@@ -147,16 +147,7 @@ public class Cube {
 			return workingInspectorsCount > 0
 					|| waitingInspectorsCount > 0
 					|| (workingRotatorType != null && workingRotatorType != rotatorType)
-					|| areRotatorsWaiting();
-		}
-
-		private boolean areRotatorsWaiting() {
-			for (var rotator : RotatorType.values()) {
-				if (waitingRotatorCounts.get(rotator) > 0) {
-					return true;
-				}
-			}
-			return false;
+					|| waitingRotatorsTotalCount > 0;
 		}
 
 		private void waitBeforeRotationAccess(RotatorType rotatorType) throws InterruptedException {
