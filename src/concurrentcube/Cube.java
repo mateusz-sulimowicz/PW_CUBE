@@ -3,6 +3,8 @@ package concurrentcube;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
 import concurrentcube.inspection.CubeInspector;
@@ -38,7 +40,7 @@ public class Cube {
 
 	public class AccessManager {
 
-		private final Semaphore guard = new Semaphore(1);
+		private final Lock lock = new ReentrantLock();
 
 		private final Semaphore waitingRotatorsRepresentatives = new Semaphore(0);
 		private int waitingRotatorsTotalCount;
@@ -52,7 +54,7 @@ public class Cube {
 		private int waitingInspectorsCount;
 		private int workingInspectorsCount;
 
-		private final Semaphore[] rotationLayersGuards;
+		private final Lock[] rotationLayersLocks;
 
 		public AccessManager() {
 			this.waitingRotators = new HashMap<>();
@@ -63,83 +65,105 @@ public class Cube {
 				waitingRotatorCounts.put(rotatorType, 0);
 			}
 
-			rotationLayersGuards = new Semaphore[size];
+			rotationLayersLocks = new ReentrantLock[size];
 			for (int i = 0; i < size; ++i) {
-				rotationLayersGuards[i] = new Semaphore(1);
+				rotationLayersLocks[i] = new ReentrantLock();
 			}
 		}
 
 		public void onBeforeRotation(int side, int layer) throws InterruptedException {
 			RotatorType rotatorType = RotatorType.get(side);
 
-			guard.acquire();
-			if (shouldRotatorWait(rotatorType)) {
-				addWaitingRotatorInfo(rotatorType);
-				guard.release();
-				waitBeforeRotationAccess(rotatorType);
-				// dziedziczenie ochrony
-				removeWaitingRotatorInfo(rotatorType);
+			lock.lockInterruptibly();
+			try {
+				if (shouldRotatorWait(rotatorType)) {
+					addWaitingRotatorInfo(rotatorType);
+					lock.unlock();
+					waitBeforeRotationCubeAccess(rotatorType);
+					lock.lock();
+					removeWaitingRotatorInfo(rotatorType);
+				}
+
+				if (Thread.currentThread().isInterrupted()) {
+					onAfterRotation(side, layer);
+					throw new InterruptedException();
+				} else {
+					addWorkingRotatorInfo(rotatorType);
+					wakeNextWaitingRotator(rotatorType);
+				}
+			} finally {
+				lock.unlock();
 			}
-			addWorkingRotatorInfo(rotatorType);
-			wakeNextWaitingRotator(rotatorType);
-			getRotationLayerGuard(side, layer).acquire();
+
+			getRotationLayerLock(side, layer).lock();
+			if (Thread.currentThread().isInterrupted()) {
+				onAfterRotation(side, layer);
+			}
 		}
 
-
 		public void onAfterRotation(int side, int layer) throws InterruptedException {
-			getRotationLayerGuard(side, layer).release();
+			getRotationLayerLock(side, layer).unlock();
 			RotatorType rotatorType = RotatorType.get(side);
 
-			guard.acquire();
-			removeWorkingRotatorInfo(rotatorType);
-			if (workingRotatorsCount == 0) {
-				if (waitingInspectorsCount > 0) {
-					// przekazanie ochrony
-					waitingInspectors.release();
-				} else if (waitingRotatorsTotalCount > 0) {
-					// przekazanie ochrony
-					waitingRotatorsRepresentatives.release();
-				} else {
-					// nie ma kogo budzić
-					guard.release();
+			lock.lock();
+			try {
+				removeWorkingRotatorInfo(rotatorType);
+				if (workingRotatorsCount == 0) {
+					if (waitingInspectorsCount > 0) {
+						waitingInspectors.release();
+					} else if (waitingRotatorsTotalCount > 0) {
+						waitingRotatorsRepresentatives.release();
+					}
 				}
-			} else {
-				// nie jest ostatnim obracającym
-				guard.release();
+
+				if (Thread.currentThread().isInterrupted()) {
+					throw new InterruptedException();
+				}
+			} finally {
+				lock.unlock();
 			}
 		}
 
 		public void onBeforeInspection() throws InterruptedException {
-			guard.acquire();
+			lock.lockInterruptibly();
 			if (shouldInspectorWait()) {
 				++waitingInspectorsCount;
-				guard.release();
-				waitingInspectors.acquire();
-				// dziedziczenie ochrony
+				lock.unlock();
+				waitingInspectors.acquireUninterruptibly();
+				lock.lock();
 				--waitingInspectorsCount;
 			}
 
-			++workingInspectorsCount;
-			wakeNextWaitingInspector();
+			try {
+				if (!Thread.currentThread().isInterrupted()) {
+					++workingInspectorsCount;
+					wakeNextWaitingInspector();
+				} else {
+					onAfterInspection();
+					throw new InterruptedException();
+				}
+			} finally {
+				lock.unlock();
+			}
 		}
 
 		public void onAfterInspection() throws InterruptedException {
-			guard.acquire();
-			--workingInspectorsCount;
-			if (workingInspectorsCount == 0) {
-				if (waitingRotatorsTotalCount > 0) {
-					// przekazanie ochrony
-					waitingRotatorsRepresentatives.release();
-				} else if (waitingInspectorsCount > 0) {
-					// przekazanie ochrony
-					waitingInspectors.release();
-				} else {
-					// nie ma kogo budzić
-					guard.release();
+			lock.lock();
+			try {
+				--workingInspectorsCount;
+				if (workingInspectorsCount == 0) {
+					if (waitingRotatorsTotalCount > 0) {
+						waitingRotatorsRepresentatives.release();
+					} else if (waitingInspectorsCount > 0) {
+						waitingInspectors.release();
+					}
 				}
-			} else {
-				// nie jest ostatnim oglądającym
-				guard.release();
+
+				if (Thread.currentThread().isInterrupted()) {
+					throw new InterruptedException();
+				}
+			} finally {
+				lock.unlock();
 			}
 		}
 
@@ -150,11 +174,11 @@ public class Cube {
 					|| waitingRotatorsTotalCount > 0;
 		}
 
-		private void waitBeforeRotationAccess(RotatorType rotatorType) throws InterruptedException {
+		private void waitBeforeRotationCubeAccess(RotatorType rotatorType) throws InterruptedException {
 			if (waitingRotatorCounts.get(rotatorType) == 1) {
-				waitingRotatorsRepresentatives.acquire();
+				waitingRotatorsRepresentatives.acquireUninterruptibly();
 			} else {
-				waitingRotators.get(rotatorType).acquire();
+				waitingRotators.get(rotatorType).acquireUninterruptibly();
 			}
 		}
 
@@ -183,10 +207,7 @@ public class Cube {
 
 		private void wakeNextWaitingRotator(RotatorType rotatorType) {
 			if (waitingRotatorCounts.get(rotatorType) > 0) {
-				// przekazanie ochrony
 				waitingRotators.get(rotatorType).release();
-			} else {
-				guard.release(); // nie ma kogo budzić
 			}
 		}
 
@@ -197,16 +218,14 @@ public class Cube {
 		private void wakeNextWaitingInspector() {
 			if (waitingInspectorsCount > 0) {
 				waitingInspectors.release();
-			} else {
-				guard.release();
 			}
 		}
 
-		private Semaphore getRotationLayerGuard(int side, int layer) {
+		private Lock getRotationLayerLock(int side, int layer) {
 			if (side == 0 || side == 1 || side == 2) {
-				return rotationLayersGuards[layer];
+				return rotationLayersLocks[layer];
 			} else {
-				return rotationLayersGuards[size - 1 - layer];
+				return rotationLayersLocks[size - 1 - layer];
 			}
 		}
 

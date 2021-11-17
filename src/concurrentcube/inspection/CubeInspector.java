@@ -19,7 +19,7 @@ public class CubeInspector {
 	}
 
 	public String show() throws InterruptedException {
-		String serializedCube;
+		String serializedCube = "";
 
 		accessManager.onBeforeInspection();
 		beforeShowing.run();
