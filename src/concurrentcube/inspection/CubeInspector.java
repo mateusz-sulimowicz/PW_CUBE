@@ -21,11 +21,11 @@ public class CubeInspector {
 	public String show() throws InterruptedException {
 		String serializedCube = "";
 
-		accessManager.onBeforeInspection();
+		accessManager.onInspectorEntry();
 		beforeShowing.run();
 		serializedCube = state.toString();
 		afterShowing.run();
-		accessManager.onAfterInspection();
+		accessManager.onInspectorExit();
 
 		return serializedCube;
 	}

@@ -71,7 +71,7 @@ public class Cube {
 			}
 		}
 
-		public void onBeforeRotation(int side, int layer) throws InterruptedException {
+		public void onRotatorEntry(int side, int layer) throws InterruptedException {
 			RotatorType rotatorType = RotatorType.get(side);
 
 			lock.lockInterruptibly();
@@ -86,7 +86,7 @@ public class Cube {
 				addWorkingRotatorInfo(rotatorType);
 
 				if (Thread.currentThread().isInterrupted()) {
-					onAfterRotation(side, layer);
+					onRotatorExit(side, layer);
 					throw new InterruptedException();
 				} else {
 					wakeNextWaitingRotator(rotatorType);
@@ -97,11 +97,11 @@ public class Cube {
 
 			getRotationLayerLock(side, layer).lock();
 			if (Thread.currentThread().isInterrupted()) {
-				onAfterRotation(side, layer);
+				onRotatorExit(side, layer);
 			}
 		}
 
-		public void onAfterRotation(int side, int layer) throws InterruptedException {
+		public void onRotatorExit(int side, int layer) throws InterruptedException {
 			getRotationLayerLock(side, layer).unlock();
 			RotatorType rotatorType = RotatorType.get(side);
 
@@ -124,7 +124,7 @@ public class Cube {
 			}
 		}
 
-		public void onBeforeInspection() throws InterruptedException {
+		public void onInspectorEntry() throws InterruptedException {
 			lock.lockInterruptibly();
 			if (shouldInspectorWait()) {
 				++waitingInspectorsCount;
@@ -139,7 +139,7 @@ public class Cube {
 				if (!Thread.currentThread().isInterrupted()) {
 					wakeNextWaitingInspector();
 				} else {
-					onAfterInspection();
+					onInspectorExit();
 					throw new InterruptedException();
 				}
 			} finally {
@@ -147,7 +147,7 @@ public class Cube {
 			}
 		}
 
-		public void onAfterInspection() throws InterruptedException {
+		public void onInspectorExit() throws InterruptedException {
 			lock.lock();
 			try {
 				--workingInspectorsCount;
