@@ -83,12 +83,12 @@ public class Cube {
 					lock.lock();
 					removeWaitingRotatorInfo(rotatorType);
 				}
+				addWorkingRotatorInfo(rotatorType);
 
 				if (Thread.currentThread().isInterrupted()) {
 					onAfterRotation(side, layer);
 					throw new InterruptedException();
 				} else {
-					addWorkingRotatorInfo(rotatorType);
 					wakeNextWaitingRotator(rotatorType);
 				}
 			} finally {
@@ -133,10 +133,10 @@ public class Cube {
 				lock.lock();
 				--waitingInspectorsCount;
 			}
+			++workingInspectorsCount;
 
 			try {
 				if (!Thread.currentThread().isInterrupted()) {
-					++workingInspectorsCount;
 					wakeNextWaitingInspector();
 				} else {
 					onAfterInspection();

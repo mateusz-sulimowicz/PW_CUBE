@@ -231,12 +231,12 @@ public class CubeTest {
 		}
 	}
 
-	private static final int CONCURRENT_INSPECTORS = 500;
+	private static final int CONCURRENT_INSPECTORS = 1000;
 
 	@Test
 	public void shouldInspectCubeConcurrently() {
 		// given
-		cube = getSolvedCube(CONCURRENT_INSPECTORS, 1000);
+		cube = getSolvedCube(4, 1000);
 		List<Thread> inspectors = getInspectors(CONCURRENT_INSPECTORS);
 
 		// when
@@ -245,7 +245,7 @@ public class CubeTest {
 			joinThreads(inspectors);
 
 			// then
-			Assertions.assertEquals(cube.show(), getSolvedCube(CONCURRENT_INSPECTORS, 0).show());
+			Assertions.assertEquals(cube.show(), SOLVED_EXPECTED);
 		} catch (InterruptedException e) {
 			Assertions.fail();
 		}
