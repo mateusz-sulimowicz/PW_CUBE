@@ -72,17 +72,16 @@ public class Cube {
 		}
 
 		public void onRotatorEntry(int side, int layer) throws InterruptedException {
-			RotatorType rotatorType = RotatorType.get(side);
-
+			RotatorType rotator = RotatorType.get(side);
 			mutex.acquire();
-			if (shouldRotatorWait(rotatorType)) {
-				addWaitingRotatorInfo(rotatorType);
+			if (shouldRotatorWait(rotator)) {
+				addWaitingRotatorInfo(rotator);
 				mutex.release();
-				waitBeforeRotationCubeAccess(rotatorType);
-				removeWaitingRotatorInfo(rotatorType);
+				waitBeforeRotationCubeAccess(rotator);
+				removeWaitingRotatorInfo(rotator);
 			}
-			addWorkingRotatorInfo(rotatorType);
-			wakeNextWaitingRotator(rotatorType);
+			addWorkingRotatorInfo(rotator);
+			wakeNextWaitingRotator(rotator);
 
 			if (Thread.interrupted()) {
 				throw new InterruptedException();
@@ -91,7 +90,7 @@ public class Cube {
 			getRotationLayerLock(side, layer).lockInterruptibly();
 		}
 
-		public void onRotatorExit(int side, int layer) throws InterruptedException {
+		public void onRotatorExit(int side) throws InterruptedException {
 			RotatorType rotatorType = RotatorType.get(side);
 
 			mutex.acquireUninterruptibly();

@@ -20,7 +20,6 @@ public class CubeInspector {
 
 	public String show() throws InterruptedException {
 		String serializedCube;
-
 		try {
 			accessManager.onInspectorEntry();
 			beforeShowing.run();
@@ -32,7 +31,6 @@ public class CubeInspector {
 		} finally {
 			accessManager.onInspectorExit();
 		}
-
 		return serializedCube;
 	}
 

@@ -39,7 +39,7 @@ public class CubeRotator {
 			Thread.currentThread().interrupt();
 			throw e;
 		} finally {
-			accessManager.onRotatorExit(side, layer);
+			accessManager.onRotatorExit(side);
 		}
 	}
 
