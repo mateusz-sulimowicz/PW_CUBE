@@ -29,18 +29,11 @@ public class CubeRotator {
 	}
 
 	public void rotate(int side, int layer) throws InterruptedException {
-		try {
-			accessManager.onRotatorEntry(side, layer);
-			beforeRotation.accept(side, layer);
-			rotateCube(side, layer);
-			afterRotation.accept(side, layer);
-			accessManager.onAfterRotation(side, layer);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw e;
-		} finally {
-			accessManager.onRotatorExit(side);
-		}
+		accessManager.onBeforeRotation(side, layer);
+		beforeRotation.accept(side, layer);
+		rotateCube(side, layer);
+		afterRotation.accept(side, layer);
+		accessManager.onAfterRotation(side, layer);
 	}
 
 	private void rotateCube(int side, int layer) {
@@ -106,7 +99,7 @@ public class CubeRotator {
 		int[] frontRow = state.getRow(FRONT, layer);
 		int[] leftRow = state.getRow(LEFT, layer);
 
-		state.setRow(BACK, reverse(leftRow), layer);
+		state.setRow(BACK, leftRow, layer);
 		state.setRow(RIGHT, backRow, layer);
 		state.setRow(FRONT, rightRow, layer);
 		state.setRow(LEFT, frontRow, layer);

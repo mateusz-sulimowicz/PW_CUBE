@@ -2,6 +2,7 @@ package concurrentcube;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ public class CubeTest {
 	public void resetCube() {
 		cube = new Cube(4, (x, y) -> {},  (x, y) -> {}, () -> {}, () -> {});
 	}
+
 	private static final String SOLVED_EXPECTED =
 			"0000"
 					+ "0000"
@@ -222,7 +224,7 @@ public class CubeTest {
 		// when
 		try {
 			startThreads(parallel, parralelCounterClockwise);
-			joinThreads(parallel, parralelCounterClockwise);
+			joinThreads(0, parallel, parralelCounterClockwise);
 
 			// then
 			Assertions.assertEquals(cube.show(), getSolvedCube(PARALLEL_ROTATORS, 0).show());
@@ -242,7 +244,7 @@ public class CubeTest {
 		// when
 		try {
 			startThreads(inspectors);
-			joinThreads(inspectors);
+			joinThreads(0, inspectors);
 
 			// then
 			Assertions.assertEquals(cube.show(), SOLVED_EXPECTED);
@@ -250,6 +252,44 @@ public class CubeTest {
 			Assertions.fail();
 		}
 	}
+
+	private static final int DEADLOCK_TEST_ATTEMPTS = 1000;
+
+	@Test
+	public void shouldNotDeadlock() {
+		AtomicInteger waitingThreadsCount = new AtomicInteger(0);
+
+		cube = new Cube(10,
+				(x, y) -> waitingThreadsCount.incrementAndGet(),
+				(x, y) -> waitingThreadsCount.decrementAndGet(),
+				waitingThreadsCount::incrementAndGet,
+				waitingThreadsCount::decrementAndGet);
+		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
+			// given
+
+			List<Thread> inspectors = getInspectors(10);
+
+			List<Thread> rotatorsXY = getParallelRotators(2, 10);
+			rotatorsXY.addAll(getParallelRotators(4, 10));
+
+			List<Thread> rotatorsXZ = getParallelRotators(0, 10);
+			rotatorsXZ.addAll(getParallelRotators(5, 10));
+
+			List<Thread> rotatorsYZ = getParallelRotators(1, 10);
+			rotatorsYZ.addAll(getParallelRotators(3, 10));
+
+			// when
+			try {
+				startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+				joinThreads(400, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+				Assertions.assertEquals(waitingThreadsCount.intValue(), 0);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				System.out.println("Main thread interrupted!");
+			}
+		}
+	}
+
 
 
 	private List<Thread> getInspectors(int count) {
@@ -297,10 +337,10 @@ public class CubeTest {
 		}
 	}
 
-	private void joinThreads(List<Thread>... threadLists) throws InterruptedException {
+	private void joinThreads(int timeout, List<Thread>... threadLists) throws InterruptedException {
 		for (var threads : threadLists) {
 			for (var thread : threads) {
-				thread.join();
+				thread.join(timeout);
 			}
 		}
 	}

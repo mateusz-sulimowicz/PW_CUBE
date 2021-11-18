@@ -20,17 +20,12 @@ public class CubeInspector {
 
 	public String show() throws InterruptedException {
 		String serializedCube;
-		try {
-			accessManager.onInspectorEntry();
-			beforeShowing.run();
-			serializedCube = cube.toString();
-			afterShowing.run();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw e;
-		} finally {
-			accessManager.onInspectorExit();
-		}
+		accessManager.onInspectorEntry();
+		beforeShowing.run();
+		serializedCube = cube.toString();
+		afterShowing.run();
+		accessManager.onInspectorExit();
+
 		return serializedCube;
 	}
 
