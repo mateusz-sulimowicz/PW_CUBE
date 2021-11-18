@@ -5,27 +5,33 @@ import concurrentcube.structure.CubeState;
 
 public class CubeInspector {
 
-	private final CubeState state;
+	private final CubeState cube;
 	private final Runnable beforeShowing;
 	private final Runnable afterShowing;
 	private final Cube.AccessManager accessManager;
 
-	public CubeInspector(CubeState state, Runnable beforeShowing, Runnable afterShowing,
+	public CubeInspector(CubeState cube, Runnable beforeShowing, Runnable afterShowing,
 			Cube.AccessManager accessManager) {
-		this.state = state;
+		this.cube = cube;
 		this.beforeShowing = beforeShowing;
 		this.afterShowing = afterShowing;
 		this.accessManager = accessManager;
 	}
 
 	public String show() throws InterruptedException {
-		String serializedCube = "";
+		String serializedCube;
 
-		accessManager.onInspectorEntry();
-		beforeShowing.run();
-		serializedCube = state.toString();
-		afterShowing.run();
-		accessManager.onInspectorExit();
+		try {
+			accessManager.onInspectorEntry();
+			beforeShowing.run();
+			serializedCube = cube.toString();
+			afterShowing.run();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw e;
+		} finally {
+			accessManager.onInspectorExit();
+		}
 
 		return serializedCube;
 	}

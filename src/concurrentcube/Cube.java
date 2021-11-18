@@ -40,7 +40,7 @@ public class Cube {
 
 	public class AccessManager {
 
-		private final Lock lock = new ReentrantLock();
+		private final Semaphore mutex = new Semaphore(1);
 
 		private final Semaphore waitingRotatorsRepresentatives = new Semaphore(0);
 		private int waitingRotatorsTotalCount;
@@ -74,96 +74,74 @@ public class Cube {
 		public void onRotatorEntry(int side, int layer) throws InterruptedException {
 			RotatorType rotatorType = RotatorType.get(side);
 
-			lock.lockInterruptibly();
-			try {
-				if (shouldRotatorWait(rotatorType)) {
-					addWaitingRotatorInfo(rotatorType);
-					lock.unlock();
-					waitBeforeRotationCubeAccess(rotatorType);
-					lock.lock();
-					removeWaitingRotatorInfo(rotatorType);
-				}
-				addWorkingRotatorInfo(rotatorType);
+			mutex.acquire();
+			if (shouldRotatorWait(rotatorType)) {
+				addWaitingRotatorInfo(rotatorType);
+				mutex.release();
+				waitBeforeRotationCubeAccess(rotatorType);
+				removeWaitingRotatorInfo(rotatorType);
+			}
+			addWorkingRotatorInfo(rotatorType);
+			wakeNextWaitingRotator(rotatorType);
 
-				if (Thread.currentThread().isInterrupted()) {
-					onRotatorExit(side, layer);
-					throw new InterruptedException();
-				} else {
-					wakeNextWaitingRotator(rotatorType);
-				}
-			} finally {
-				lock.unlock();
+			if (Thread.interrupted()) {
+				throw new InterruptedException();
 			}
 
-			getRotationLayerLock(side, layer).lock();
-			if (Thread.currentThread().isInterrupted()) {
-				onRotatorExit(side, layer);
-			}
+			getRotationLayerLock(side, layer).lockInterruptibly();
 		}
 
 		public void onRotatorExit(int side, int layer) throws InterruptedException {
-			getRotationLayerLock(side, layer).unlock();
 			RotatorType rotatorType = RotatorType.get(side);
 
-			lock.lock();
-			try {
-				removeWorkingRotatorInfo(rotatorType);
-				if (workingRotatorsCount == 0) {
-					if (waitingInspectorsCount > 0) {
-						waitingInspectors.release();
-					} else if (waitingRotatorsTotalCount > 0) {
-						waitingRotatorsRepresentatives.release();
-					}
-				}
+			mutex.acquireUninterruptibly();
+			removeWorkingRotatorInfo(rotatorType);
+			if (workingRotatorsCount == 0 && waitingInspectorsCount > 0) {
+				waitingInspectors.release();
+			} else if (workingRotatorsCount == 0 && waitingRotatorsTotalCount > 0) {
+				waitingRotatorsRepresentatives.release();
+			} else {
+				mutex.release();
+			}
 
-				if (Thread.currentThread().isInterrupted()) {
-					throw new InterruptedException();
-				}
-			} finally {
-				lock.unlock();
+			if (Thread.currentThread().isInterrupted()) {
+				throw new InterruptedException();
 			}
 		}
 
+		public void onAfterRotation(int side, int layer) {
+			getRotationLayerLock(side, layer).unlock();
+		}
+
 		public void onInspectorEntry() throws InterruptedException {
-			lock.lockInterruptibly();
+			mutex.acquire();
 			if (shouldInspectorWait()) {
 				++waitingInspectorsCount;
-				lock.unlock();
+				mutex.release();
 				waitingInspectors.acquireUninterruptibly();
-				lock.lock();
 				--waitingInspectorsCount;
 			}
 			++workingInspectorsCount;
+			wakeNextWaitingInspector();
 
-			try {
-				if (!Thread.currentThread().isInterrupted()) {
-					wakeNextWaitingInspector();
-				} else {
-					onInspectorExit();
-					throw new InterruptedException();
-				}
-			} finally {
-				lock.unlock();
+			if (Thread.interrupted()) {
+				throw new InterruptedException();
 			}
 		}
 
 		public void onInspectorExit() throws InterruptedException {
-			lock.lock();
-			try {
-				--workingInspectorsCount;
-				if (workingInspectorsCount == 0) {
-					if (waitingRotatorsTotalCount > 0) {
-						waitingRotatorsRepresentatives.release();
-					} else if (waitingInspectorsCount > 0) {
-						waitingInspectors.release();
-					}
-				}
+			mutex.acquireUninterruptibly();
+			--workingInspectorsCount;
+			if (workingInspectorsCount == 0 && waitingRotatorsTotalCount > 0) {
+				waitingRotatorsRepresentatives.release();
+			} else if (workingInspectorsCount == 0 && waitingInspectorsCount > 0) {
+				waitingInspectors.release();
+			} else {
+				mutex.release();
+			}
 
-				if (Thread.currentThread().isInterrupted()) {
-					throw new InterruptedException();
-				}
-			} finally {
-				lock.unlock();
+			if (Thread.interrupted()) {
+				throw new InterruptedException();
 			}
 		}
 
@@ -174,7 +152,7 @@ public class Cube {
 					|| waitingRotatorsTotalCount > 0;
 		}
 
-		private void waitBeforeRotationCubeAccess(RotatorType rotatorType) throws InterruptedException {
+		private void waitBeforeRotationCubeAccess(RotatorType rotatorType) {
 			if (waitingRotatorCounts.get(rotatorType) == 1) {
 				waitingRotatorsRepresentatives.acquireUninterruptibly();
 			} else {
@@ -208,6 +186,8 @@ public class Cube {
 		private void wakeNextWaitingRotator(RotatorType rotatorType) {
 			if (waitingRotatorCounts.get(rotatorType) > 0) {
 				waitingRotators.get(rotatorType).release();
+			} else {
+				mutex.release();
 			}
 		}
 
@@ -218,6 +198,8 @@ public class Cube {
 		private void wakeNextWaitingInspector() {
 			if (waitingInspectorsCount > 0) {
 				waitingInspectors.release();
+			} else {
+				mutex.release();
 			}
 		}
 
