@@ -208,8 +208,48 @@ public class CubeTest {
 			cube.rotate(1, 1);
 			cube.rotate(4, 2);
 			Assertions.assertEquals(cube.show(), LEFT1_BACK2_EXPECTED);
-		} catch (InterruptedException ignored) {
-		}
+		} catch (InterruptedException ignored) {}
+	}
+
+	private static final String FRONT2_LEFT2_BOTTOM1_EXPECTED =
+			 		  "0040"
+					+ "1141"
+					+ "0040"
+					+ "0040"
+
+					+ "1511"
+					+ "1511"
+					+ "4544"
+					+ "1511"
+
+					+ "2202"
+					+ "2212"
+					+ "1511"
+					+ "2202"
+
+					+ "3303"
+					+ "3303"
+					+ "2202"
+					+ "3303"
+
+					+ "4544"
+					+ "4344"
+					+ "3303"
+					+ "4544"
+
+					+ "5525"
+					+ "5525"
+					+ "3323"
+					+ "5525";
+
+	@Test
+	public void shouldRotateFront2Left2Bottom1() {
+		try {
+			cube.rotate(2, 2);
+			cube.rotate(1, 2);
+			cube.rotate(5, 1);
+			Assertions.assertEquals(cube.show(), FRONT2_LEFT2_BOTTOM1_EXPECTED);
+		} catch (InterruptedException ignored) {}
 	}
 
 	private static final int PARALLEL_ROTATORS = 1000;
@@ -266,9 +306,7 @@ public class CubeTest {
 				waitingThreadsCount::decrementAndGet);
 		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
 			// given
-
 			List<Thread> inspectors = getInspectors(10);
-
 			List<Thread> rotatorsXY = getParallelRotators(2, 10);
 			rotatorsXY.addAll(getParallelRotators(4, 10));
 
@@ -282,6 +320,8 @@ public class CubeTest {
 			try {
 				startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 				joinThreads(400, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+
+				// then
 				Assertions.assertEquals(waitingThreadsCount.intValue(), 0);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
@@ -346,7 +386,7 @@ public class CubeTest {
 	}
 
 	private Cube getSolvedCube(int size, int actionTime) {
-		// rotation and inspections take actionTime milliseconds.
+		// rotation and inspection take actionTime milliseconds.
 		return new Cube(size,
 				(x, y) -> {
 					try {
