@@ -1,10 +1,7 @@
 package concurrentcube;
 
-import java.sql.SQLOutput;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Assertions;
@@ -308,11 +305,13 @@ public class CubeTest {
 		}
 	}
 
-	private static final int DEADLOCK_TEST_ATTEMPTS = 100000;
+	private static final int DEADLOCK_TEST_ATTEMPTS = 1000;
+	private static final int CUBE_SIZE = 42;
+	private static final int WORKER_TYPES = 7;
 
 	@Test
 	public void shouldNotDeadlock() {
-		cube = new Cube(10,
+		cube = new Cube(CUBE_SIZE,
 				(x, y) -> {},
 				(x, y) -> waitingThreadsCount.decrementAndGet(),
 				() -> {},
@@ -320,17 +319,17 @@ public class CubeTest {
 
 		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
 			// given
-			List<Thread> inspectors = getInspectors(10);
-			List<Thread> rotatorsXY = getParallelRotators(2, 10);
-			rotatorsXY.addAll(getParallelRotators(4, 10));
+			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, 10);
-			rotatorsXZ.addAll(getParallelRotators(5, 10));
+			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, 10);
-			rotatorsYZ.addAll(getParallelRotators(3, 10));
+			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			waitingThreadsCount.set(70);
+			waitingThreadsCount.set(CUBE_SIZE * WORKER_TYPES);
 
 			// when
 			try {
@@ -339,7 +338,6 @@ public class CubeTest {
 
 				// then
 				Assertions.assertEquals(0, waitingThreadsCount.intValue());
-				System.out.println("Attempt " + i + " passed!");
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				System.out.println("Main thread interrupted!");
@@ -349,7 +347,7 @@ public class CubeTest {
 
 	@Test
 	public void shouldNotDeadlockWhenInterruptedRotators() {
-		cube = new Cube(10,
+		cube = new Cube(CUBE_SIZE,
 				(x, y) -> {},
 				(x, y) -> {},
 				() -> {},
@@ -357,20 +355,20 @@ public class CubeTest {
 
 		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
 			// given
-			List<Thread> inspectors = getInspectors(10);
+			List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
-			List<Thread> rotatorsXY = getParallelRotators(2, 10);
-			rotatorsXY.addAll(getParallelRotators(4, 10));
+			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, 10);
-			rotatorsXZ.addAll(getParallelRotators(5, 10));
+			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, 10);
-			rotatorsYZ.addAll(getParallelRotators(3, 10));
+			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			List<Thread> toInterrupt = getParallelRotators(2, 5);
+			List<Thread> toInterrupt = getParallelRotators(2, CUBE_SIZE);
 
-			waitingThreadsCount.set(10);
+			waitingThreadsCount.set(CUBE_SIZE);
 
 			// when
 			try {
@@ -380,16 +378,15 @@ public class CubeTest {
 
 				// then
 				Assertions.assertEquals(0, waitingThreadsCount.intValue());
-				System.out.println("Attempt " + i + " passed!");
 			} catch (InterruptedException ignored) {
-				System.out.println("O W MORDE ALE WESZLOooOOOOOOOOOOOOOO");
+				Thread.currentThread().interrupt();
 			}
 		}
 	}
 
 	@Test
 	public void shouldNotDeadlockWhenInterruptedInspectors() {
-		cube = new Cube(10,
+		cube = new Cube(CUBE_SIZE,
 				(x, y) -> {},
 				(x, y) -> waitingThreadsCount.decrementAndGet(),
 				() -> {},
@@ -397,19 +394,19 @@ public class CubeTest {
 
 		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
 			// given
-			List<Thread> inspectors = getInspectors(10);
-			List<Thread> rotatorsXY = getParallelRotators(2, 10);
-			rotatorsXY.addAll(getParallelRotators(4, 10));
+			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, 10);
-			rotatorsXZ.addAll(getParallelRotators(5, 10));
+			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, 10);
-			rotatorsYZ.addAll(getParallelRotators(3, 10));
+			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			List<Thread> toInterrupt = getInspectors(5);
+			List<Thread> toInterrupt = getInspectors(CUBE_SIZE);
 
-			waitingThreadsCount.set(60);
+			waitingThreadsCount.set(CUBE_SIZE * (WORKER_TYPES - 1));
 
 			// when
 			try {
@@ -419,7 +416,6 @@ public class CubeTest {
 
 				// then
 				Assertions.assertEquals(0, waitingThreadsCount.intValue());
-				System.out.println("Attempt " + i + " passed!");
 			} catch (InterruptedException ignored) {
 
 			}
@@ -456,35 +452,6 @@ public class CubeTest {
 			rotators.add(getRotatorThread(side, i));
 		}
 		return rotators;
-	}
-
-	private List<Runnable> getParallelRotationRunnables(int side, int count) {
-		List<Runnable> rotations = new ArrayList<>();
-		for (int i = 0; i < count; ++i) {
-			int layer = i;
-			rotations.add(() -> {
-				try {
-					cube.rotate(side, layer);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			});
-		}
-		return rotations;
-	}
-
-	private List<Runnable> getInspectionRunnables(int count) {
-		List<Runnable> inspections = new ArrayList<>();
-		for (int i = 0; i < count; ++i) {
-			inspections.add(() -> {
-				try {
-					cube.show();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			});
-		}
-		return inspections;
 	}
 
 	private Thread getRotatorThread(int side, int layer) {

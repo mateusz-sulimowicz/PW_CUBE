@@ -78,11 +78,17 @@ public class Cube {
 			RotatorType rotator = RotatorType.get(side);
 			mutex.acquire();
 			if (shouldRotatorWait(rotator)) {
-				logger.log;
 				addWaitingRotatorInfo(rotator);
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
+						+ waitingRotatorCounts);
+
 				waitBeforeRotationCubeAccess(rotator);
-				System.out.println("UF PUF");
+
 				removeWaitingRotatorInfo(rotator);
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Rotator " + rotator + " awaken. Waiting rotators: " + waitingRotatorsTotalCount + " "
+						+ waitingRotatorCounts);
 			}
 			addWorkingRotatorInfo(rotator);
 			wakeNextWaitingRotator(rotator);
@@ -113,7 +119,7 @@ public class Cube {
 				mutex.release();
 			}
 
-			if (Thread.currentThread().isInterrupted()) {
+			if (Thread.interrupted()) {
 				throw new InterruptedException();
 			}
 		}
@@ -126,12 +132,18 @@ public class Cube {
 		public void onInspectorEntry() throws InterruptedException {
 			mutex.acquire();
 			if (shouldInspectorWait()) {
-				System.out.println("I czekam");
 				++waitingInspectorsCount;
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Inspector " + rotator + " waiting. "
+						+ "Waiting inspectors: " + waitingInspectorsCount);
+
 				mutex.release();
 				waitingInspectors.acquireUninterruptibly();
-				System.out.println("UF PUF");
+
 				--waitingInspectorsCount;
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Inspector " + rotator + " awaken. "
+						+ "Waiting inspectors: " + waitingInspectorsCount);
 			}
 			++workingInspectorsCount;
 			wakeNextWaitingInspector();
