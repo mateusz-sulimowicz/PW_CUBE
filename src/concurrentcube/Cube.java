@@ -6,6 +6,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
+import java.util.logging.Logger;
 
 import concurrentcube.inspection.CubeInspector;
 import concurrentcube.rotation.CubeRotator;
@@ -39,6 +40,8 @@ public class Cube {
 	}
 
 	public class AccessManager {
+
+		private final Logger logger = Logger.getLogger(AccessManager.class.getName());
 
 		private final Semaphore mutex = new Semaphore(1);
 
@@ -75,9 +78,10 @@ public class Cube {
 			RotatorType rotator = RotatorType.get(side);
 			mutex.acquire();
 			if (shouldRotatorWait(rotator)) {
+				logger.log;
 				addWaitingRotatorInfo(rotator);
-				mutex.release();
 				waitBeforeRotationCubeAccess(rotator);
+				System.out.println("UF PUF");
 				removeWaitingRotatorInfo(rotator);
 			}
 			addWorkingRotatorInfo(rotator);
@@ -122,9 +126,11 @@ public class Cube {
 		public void onInspectorEntry() throws InterruptedException {
 			mutex.acquire();
 			if (shouldInspectorWait()) {
+				System.out.println("I czekam");
 				++waitingInspectorsCount;
 				mutex.release();
 				waitingInspectors.acquireUninterruptibly();
+				System.out.println("UF PUF");
 				--waitingInspectorsCount;
 			}
 			++workingInspectorsCount;
@@ -161,19 +167,21 @@ public class Cube {
 
 		private void waitBeforeRotationCubeAccess(RotatorType rotatorType) {
 			if (waitingRotatorCounts.get(rotatorType) == 1) {
+				mutex.release();
 				waitingRotatorsRepresentatives.acquireUninterruptibly();
 			} else {
+				mutex.release();
 				waitingRotators.get(rotatorType).acquireUninterruptibly();
 			}
 		}
 
 		private void addWaitingRotatorInfo(RotatorType rotatorType) {
-			waitingRotatorCounts.put(rotatorType, waitingRotatorCounts.get(rotatorType) + 1);
+			waitingRotatorCounts.merge(rotatorType, 1, Integer::sum);
 			++waitingRotatorsTotalCount;
 		}
 
 		private void removeWaitingRotatorInfo(RotatorType rotatorType) {
-			waitingRotatorCounts.put(rotatorType, waitingRotatorCounts.get(rotatorType) - 1);
+			waitingRotatorCounts.merge(rotatorType, -1, Integer::sum);
 			--waitingRotatorsTotalCount;
 		}
 
