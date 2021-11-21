@@ -3,6 +3,13 @@ package concurrentcube.inspection;
 import concurrentcube.Cube;
 import concurrentcube.structure.CubeState;
 
+/**
+ * Zajmuje się oglądaniem kostki.
+ * Czeka na swoją kolei, gdy ktoś obraca lub chce obracać kostkę.
+ *
+ * Po skończeniu pracy, jeśli czeka jakiś obracacz, to budzi reprezentanta obracaczy,
+ * wpp budzi wątek, który chce oglądać kostkę, jeśli taki jest.
+ */
 public class CubeInspector {
 
 	private final CubeState cube;

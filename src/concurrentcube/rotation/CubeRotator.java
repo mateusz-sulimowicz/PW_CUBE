@@ -13,6 +13,14 @@ import concurrentcube.Cube;
 import concurrentcube.structure.CubeState;
 import concurrentcube.structure.SideType;
 
+/**
+ * Zajmuje się obracaniem warstwy kostki.
+ * Czeka na swoją kolej, jeśli ktoś ogląda kostkę lub chce oglądać
+ * lub ktoś obraca w kolidujący sposób lub ktoś czeka na możliwość obrotu.
+ *
+ * Po skończeniu pracy, budzi wątek, który chce oglądać kostkę (jeśli taki jest),
+ * wpp budzi reprezentata wątków czekąjących na możliwość obracania.
+ * */
 public class CubeRotator {
 
 	private final CubeState state;

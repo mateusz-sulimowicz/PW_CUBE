@@ -13,6 +13,11 @@ import concurrentcube.rotation.CubeRotator;
 import concurrentcube.rotation.RotatorType;
 import concurrentcube.structure.CubeState;
 
+/**
+ * Reprezentuje kostkę Rubika, na której
+ * obroty niekolidujących warstw
+ * mogą być wykonywane współbieżnie.
+ */
 public class Cube {
 
 	private final CubeRotator rotator;
@@ -59,6 +64,13 @@ public class Cube {
 
 		private final Lock[] rotationLayersLocks;
 
+		/**
+		 * Menedżer dostępu do kostki. Zapobiega:
+		 * - równoczesnym obrotom kolidujących warstw,
+		 * - równoczesnemu oglądaniu i obracaniu kostki
+		 * - zagłodzeniu wątków czekających na swoją kolej.
+		 * Zajmuje się również obsługą przerwań wątków pracujących na kostce.
+		 */
 		public AccessManager() {
 			this.waitingRotators = new HashMap<>();
 			this.waitingRotatorCounts = new HashMap<>();
