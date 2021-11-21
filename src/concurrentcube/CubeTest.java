@@ -3,10 +3,14 @@ package concurrentcube;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import concurrentcube.rotation.RotatorType;
 
 public class CubeTest {
 
@@ -262,7 +266,7 @@ public class CubeTest {
 		} catch (InterruptedException ignored) {}
 	}
 
-	private static final int PARALLEL_ROTATORS = 1000;
+	private static final int PARALLEL_ROTATORS = 500;
 
 	@Test
 	public void shouldRotateParallelLayersConcurrently() {
@@ -284,7 +288,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int CONCURRENT_INSPECTORS = 1000;
+	private static final int CONCURRENT_INSPECTORS = 500;
 
 	@Test
 	public void shouldInspectCubeConcurrently() {
@@ -305,7 +309,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int DEADLOCK_TEST_ATTEMPTS = 1000;
+	private static final int DEADLOCK_TEST_ATTEMPTS = 500;
 	private static final int CUBE_SIZE = 42;
 	private static final int WORKER_TYPES = 7;
 
@@ -395,6 +399,7 @@ public class CubeTest {
 		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
 			// given
 			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+
 			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
 			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
@@ -417,10 +422,50 @@ public class CubeTest {
 				// then
 				Assertions.assertEquals(0, waitingThreadsCount.intValue());
 			} catch (InterruptedException ignored) {
-
+				Thread.currentThread().interrupt();
 			}
 		}
 	}
+
+	private static final int SECURITY_TEST_ATTEMPTS = 1000;
+
+	@Test
+	public void shouldNotViolateCubeAccess() {
+		CubeAccessData accessData = new CubeAccessData();
+
+		cube = new Cube(CUBE_SIZE,
+				(x, y) -> accessData.notifyRotatorEntrance(RotatorType.get(x)),
+				(x, y) -> accessData.notifyRotatorExit(RotatorType.get(x)),
+				accessData::notifyInspectorEntrance,
+				accessData::notifyInspectorExit);
+
+		for (int i = 0; i < SECURITY_TEST_ATTEMPTS; ++i) {
+			// given
+			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+
+			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+
+			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+
+			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+
+			List<Thread> toInterrupt = getInspectors(CUBE_SIZE);
+
+			// when
+			try {
+				startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+				interruptAll(toInterrupt);
+				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+
+				// then
+				Assertions.assertFalse(accessData.isSecurityViolated());
+			} catch (InterruptedException ignored) { }
+		}
+	}
+
 
 	private List<Thread> getInspectors(int count) {
 		List<Thread> inspectors = new ArrayList<>();
@@ -499,6 +544,71 @@ public class CubeTest {
 					}
 				},
 				() -> {waitingThreadsCount.decrementAndGet();});
+	}
+
+	private static class CubeAccessData {
+
+		Lock lock = new ReentrantLock();
+
+		int rotatorsInsideXY = 0;
+		int rotatorsInsideYZ = 0;
+		int rotatorsInsideXZ = 0;
+		int inspectorsInside = 0;
+
+		boolean securityViolated = false;
+
+		public void notifyRotatorEntrance(RotatorType rotatorType) {
+			lock.lock();
+			switch (rotatorType) {
+				case XY:
+					++rotatorsInsideXY;
+					securityViolated |= (inspectorsInside > 0 || rotatorsInsideYZ + rotatorsInsideXZ > 0);
+					break;
+				case YZ:
+					++rotatorsInsideYZ;
+					securityViolated |= (inspectorsInside > 0 || rotatorsInsideXY + rotatorsInsideXZ > 0);
+					break;
+				default:
+					++rotatorsInsideXZ;
+					securityViolated |= (inspectorsInside > 0 || rotatorsInsideXY + rotatorsInsideYZ > 0);
+					break;
+			}
+			lock.unlock();
+		}
+
+		public void notifyRotatorExit(RotatorType rotatorType) {
+			lock.lock();
+			switch (rotatorType) {
+				case XY:
+					--rotatorsInsideXY;
+					break;
+				case YZ:
+					--rotatorsInsideYZ;
+					break;
+				default:
+					--rotatorsInsideXZ;
+					break;
+			}
+			lock.unlock();
+		}
+
+		public void notifyInspectorEntrance() {
+			lock.lock();
+			++inspectorsInside;
+			securityViolated |= rotatorsInsideXZ + rotatorsInsideXY + rotatorsInsideXY > 0;
+			lock.unlock();
+		}
+
+		public void notifyInspectorExit() {
+			lock.lock();
+			--inspectorsInside;
+			lock.unlock();
+		}
+
+		public boolean isSecurityViolated() {
+			return securityViolated;
+		}
+
 	}
 
 }

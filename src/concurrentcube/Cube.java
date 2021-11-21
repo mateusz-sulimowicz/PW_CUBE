@@ -84,6 +84,7 @@ public class Cube {
 						+ waitingRotatorCounts);
 
 				waitBeforeRotationCubeAccess(rotator);
+				// dziedziczenie ochrony
 
 				removeWaitingRotatorInfo(rotator);
 				logger.info(Thread.currentThread().getName() + ": "
@@ -95,14 +96,14 @@ public class Cube {
 
 			if (Thread.interrupted()) {
 				onRotatorExit(side);
-				throw new InterruptedException();
+				throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 			}
 
 			getRotationLayerLock(side, layer).lock();
 
 			if (Thread.interrupted()) {
 				onRotatorExit(side);
-				throw new InterruptedException();
+				throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 			}
 		}
 
@@ -112,15 +113,17 @@ public class Cube {
 			mutex.acquireUninterruptibly();
 			removeWorkingRotatorInfo(rotatorType);
 			if (workingRotatorsCount == 0 && waitingInspectorsCount > 0) {
+				// Przekazanie ochrony
 				waitingInspectors.release();
 			} else if (workingRotatorsCount == 0 && waitingRotatorsTotalCount > 0) {
+				// Przekazanie ochrony
 				waitingRotatorsRepresentatives.release();
 			} else {
 				mutex.release();
 			}
 
 			if (Thread.interrupted()) {
-				throw new InterruptedException();
+				throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 			}
 		}
 
@@ -134,15 +137,16 @@ public class Cube {
 			if (shouldInspectorWait()) {
 				++waitingInspectorsCount;
 				logger.info(Thread.currentThread().getName() + ": "
-						+ "Inspector " + rotator + " waiting. "
+						+ "Inspector " + " waiting. "
 						+ "Waiting inspectors: " + waitingInspectorsCount);
 
 				mutex.release();
 				waitingInspectors.acquireUninterruptibly();
+				// dziedziczenie ochrony
 
 				--waitingInspectorsCount;
 				logger.info(Thread.currentThread().getName() + ": "
-						+ "Inspector " + rotator + " awaken. "
+						+ "Inspector " + " awaken. "
 						+ "Waiting inspectors: " + waitingInspectorsCount);
 			}
 			++workingInspectorsCount;
@@ -150,7 +154,7 @@ public class Cube {
 
 			if (Thread.interrupted()) {
 				onInspectorExit();
-				throw new InterruptedException();
+				throw new InterruptedException("Inspector " + Thread.currentThread().getName() + "interrupted.");
 			}
 		}
 
@@ -158,15 +162,17 @@ public class Cube {
 			mutex.acquireUninterruptibly();
 			--workingInspectorsCount;
 			if (workingInspectorsCount == 0 && waitingRotatorsTotalCount > 0) {
+				// przekazanie ochrony
 				waitingRotatorsRepresentatives.release();
 			} else if (workingInspectorsCount == 0 && waitingInspectorsCount > 0) {
+				// przekazanie ochrony
 				waitingInspectors.release();
 			} else {
 				mutex.release();
 			}
 
 			if (Thread.interrupted()) {
-				throw new InterruptedException();
+				throw new InterruptedException("Inspector " + Thread.currentThread().getName() + "interrupted.");
 			}
 		}
 
@@ -178,6 +184,8 @@ public class Cube {
 		}
 
 		private void waitBeforeRotationCubeAccess(RotatorType rotatorType) {
+			// Jeśli jest pierwszym czekającym z grupy,
+			// to czeka na semaforze dla reprezentantów grup.
 			if (waitingRotatorCounts.get(rotatorType) == 1) {
 				mutex.release();
 				waitingRotatorsRepresentatives.acquireUninterruptibly();
@@ -210,8 +218,10 @@ public class Cube {
 			}
 		}
 
+		// Kaskadowe budzenie czekających obracaczy
 		private void wakeNextWaitingRotator(RotatorType rotatorType) {
 			if (waitingRotatorCounts.get(rotatorType) > 0) {
+				// przekazanie ochrony
 				waitingRotators.get(rotatorType).release();
 			} else {
 				mutex.release();
@@ -219,12 +229,15 @@ public class Cube {
 		}
 
 		private boolean shouldInspectorWait() {
+			// Czeka jeśli ktoś obraca lub chce obracać.
 			return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
 		}
 
+		// Kaskadowe budzenie czekających oglądaczy
 		private void wakeNextWaitingInspector() {
 			if (waitingInspectorsCount > 0) {
 				waitingInspectors.release();
+				// przekazanie ochrony
 			} else {
 				mutex.release();
 			}
