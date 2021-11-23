@@ -1,7 +1,9 @@
 package concurrentcube;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import concurrentcube.rotation.RotatorType;
+import concurrentcube.structure.SideType;
 
 public class CubeTest {
 
@@ -462,10 +465,54 @@ public class CubeTest {
 
 				// then
 				Assertions.assertFalse(accessData.isSecurityViolated());
-			} catch (InterruptedException ignored) { }
+			} catch (InterruptedException ignored) {
+			}
 		}
 	}
 
+	private static final int ROTATION_TRIES = 1000;
+
+	// Sprawdza, czy po dużej liczbie obrotów,
+	// na kostce dalej jest size * size
+	// kwadratów każdego koloru.
+	@Test
+	public void shouldCubeHaveSameNumbersOfTilesAsSolved() {
+		// given
+		Map<Integer, Integer> tileCounts = new HashMap<>();
+		cube = getSolvedCube(CUBE_SIZE, 0);
+
+		// when
+		try {
+			for (int i = 0; i < ROTATION_TRIES; ++i) {
+				List<Thread> inspectors = getInspectors(CUBE_SIZE);
+
+				List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+				rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+
+				List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+				rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+
+				List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+				rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+
+				startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+			}
+
+			// then
+			String cubeRepresentation = cube.show();
+			for (char c : cubeRepresentation.toCharArray()) {
+				tileCounts.merge(c - '0', 1, Integer::sum);
+			}
+
+			for (var side : SideType.values()) {
+				Assertions.assertEquals(CUBE_SIZE * CUBE_SIZE, tileCounts.get(side.ordinal()));
+			}
+		} catch (InterruptedException ignored) {
+			Thread.currentThread().interrupt();
+		}
+
+	}
 
 	private List<Thread> getInspectors(int count) {
 		List<Thread> inspectors = new ArrayList<>();
