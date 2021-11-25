@@ -2,6 +2,7 @@ package concurrentcube.util;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -15,7 +16,6 @@ public class AccessManager {
 
 	private final Semaphore mutex = new Semaphore(1);
 
-	private final Semaphore waitingRotatorsRepresentatives = new Semaphore(0);
 	private int waitingRotatorsTotalCount;
 	private final Map<RotatorType, Semaphore> waitingRotators;
 	private final Map<RotatorType, Integer> waitingRotatorCounts;
@@ -63,7 +63,8 @@ public class AccessManager {
 					+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
 					+ waitingRotatorCounts);
 
-			waitBeforeRotationCubeAccess(rotator);
+			mutex.release();
+			waitingRotators.get(rotator).acquireUninterruptibly();
 			// dziedziczenie ochrony
 
 			removeWaitingRotatorInfo(rotator);
@@ -73,11 +74,6 @@ public class AccessManager {
 		}
 		addWorkingRotatorInfo(rotator);
 		wakeNextWaitingRotator(rotator);
-
-		if (Thread.interrupted()) {
-			Thread.currentThread().interrupt();
-			onRotatorExit(side);
-		}
 
 		try {
 			getRotationLayerLock(side, layer).lockInterruptibly();
@@ -97,7 +93,7 @@ public class AccessManager {
 			waitingInspectors.release();
 		} else if (workingRotatorsCount == 0 && waitingRotatorsTotalCount > 0) {
 			// Przekazanie ochrony
-			waitingRotatorsRepresentatives.release();
+			wakeUpWaitingRotators();
 		} else {
 			mutex.release();
 		}
@@ -105,6 +101,18 @@ public class AccessManager {
 		if (Thread.interrupted()) {
 			throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 		}
+	}
+
+	private void wakeUpWaitingRotators() {
+		int next = new Random().nextInt(3);
+		RotatorType toWakeUp = RotatorType.get(next);
+
+		while (waitingRotatorsTotalCount > 0 && waitingRotatorCounts.get(toWakeUp) == 0) {
+			next = (next + 1) % 3;
+			toWakeUp = RotatorType.get(next);
+		}
+
+		waitingRotators.get(toWakeUp).release();
 	}
 
 	public void onAfterRotation(int side, int layer) throws InterruptedException {
@@ -143,7 +151,7 @@ public class AccessManager {
 		--workingInspectorsCount;
 		if (workingInspectorsCount == 0 && waitingRotatorsTotalCount > 0) {
 			// przekazanie ochrony
-			waitingRotatorsRepresentatives.release();
+			wakeUpWaitingRotators();
 		} else if (workingInspectorsCount == 0 && waitingInspectorsCount > 0) {
 			// przekazanie ochrony
 			waitingInspectors.release();
@@ -161,18 +169,6 @@ public class AccessManager {
 				|| waitingInspectorsCount > 0
 				|| (workingRotatorType != null && workingRotatorType != rotatorType)
 				|| waitingRotatorsTotalCount > 0;
-	}
-
-	private void waitBeforeRotationCubeAccess(RotatorType rotatorType) {
-		// Jeśli jest pierwszym czekającym z grupy,
-		// to czeka na semaforze dla reprezentantów grup.
-		if (waitingRotatorCounts.get(rotatorType) == 1) {
-			mutex.release();
-			waitingRotatorsRepresentatives.acquireUninterruptibly();
-		} else {
-			mutex.release();
-			waitingRotators.get(rotatorType).acquireUninterruptibly();
-		}
 	}
 
 	private void addWaitingRotatorInfo(RotatorType rotatorType) {
