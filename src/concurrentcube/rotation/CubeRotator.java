@@ -9,7 +9,7 @@ import static concurrentcube.structure.SideType.TOP;
 
 import java.util.function.BiConsumer;
 
-import concurrentcube.Cube;
+import concurrentcube.util.AccessManager;
 import concurrentcube.structure.CubeState;
 import concurrentcube.structure.SideType;
 
@@ -26,10 +26,10 @@ public class CubeRotator {
 	private final CubeState state;
 	private final BiConsumer<Integer, Integer> beforeRotation;
 	private final BiConsumer<Integer, Integer> afterRotation;
-	private final Cube.AccessManager accessManager;
+	private final AccessManager accessManager;
 
 	public CubeRotator(CubeState state, BiConsumer<Integer, Integer> beforeRotation,
-			BiConsumer<Integer, Integer> afterRotation, Cube.AccessManager accessManager) {
+			BiConsumer<Integer, Integer> afterRotation, AccessManager accessManager) {
 		this.state = state;
 		this.beforeRotation = beforeRotation;
 		this.afterRotation = afterRotation;
