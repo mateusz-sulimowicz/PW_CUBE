@@ -10,6 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
 import concurrentcube.rotation.RotatorType;
+import jdk.swing.interop.SwingInterOpUtils;
 
 public class AccessManager {
 
@@ -57,27 +58,37 @@ public class AccessManager {
 		RotatorType rotator = RotatorType.get(side);
 		lock.lock();
 		while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator)) {
-			addWaitingRotatorInfo(rotator);
-			logger.info(Thread.currentThread().getName() + ": "
-					+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
-					+ waitingRotatorCounts);
 
-			condition.await();
+			addWaitingRotatorInfo(rotator);
+			logger.info(Thread.currentThread().getName() + ":  "
+					+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
+					+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount + "working inspectors: "
+					+ workingInspectorsCount  + "working rotators: " + workingRotatorsCount);
+
+			try {
+				condition.await();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				lock.lock();
+				try {
+					removeWaitingRotatorInfo(rotator);
+					addWorkingRotatorInfo(rotator);
+					onRotatorExit(side);
+				} finally {
+					lock.unlock();
+				}
+			}
 
 			removeWaitingRotatorInfo(rotator);
 			logger.info(Thread.currentThread().getName() + ": "
 					+ "Rotator " + rotator + " awaken. Waiting rotators: " + waitingRotatorsTotalCount + " "
 					+ waitingRotatorCounts);
 		}
+		logger.info("WCHODZE OBRACAACZ!");
 		addWorkingRotatorInfo(rotator);
 		lock.unlock();
 
-		try {
-			getRotationLayerLock(side, layer).lockInterruptibly();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			onRotatorExit(side);
-		}
+		getRotationLayerLock(side, layer).lock();
 	}
 
 	public void onRotatorExit(int side) throws InterruptedException {
@@ -108,7 +119,19 @@ public class AccessManager {
 					+ "Inspector " + " waiting. "
 					+ "Waiting inspectors: " + waitingInspectorsCount);
 
-			condition.await();
+			try {
+				condition.await();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				lock.lock();
+				try {
+					--waitingInspectorsCount;
+					++workingInspectorsCount;
+					onInspectorExit();
+				} finally {
+					lock.unlock();
+				}
+			}
 
 			--waitingInspectorsCount;
 			logger.info(Thread.currentThread().getName() + ": "
@@ -117,17 +140,13 @@ public class AccessManager {
 		}
 		++workingInspectorsCount;
 		lock.unlock();
-
-		if (Thread.interrupted()) {
-			Thread.currentThread().interrupt();
-			onInspectorExit();
-		}
 	}
 
 	public void onInspectorExit() throws InterruptedException {
 		lock.lock();
 		--workingInspectorsCount;
 		if (workingInspectorsCount == 0) {
+			System.out.println("Jestem ogladaczem, budze was!!!");
 			condition.signalAll();
 		}
 		lock.unlock();
