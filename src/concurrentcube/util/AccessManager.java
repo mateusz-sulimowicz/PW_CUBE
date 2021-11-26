@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
@@ -14,16 +15,16 @@ public class AccessManager {
 
 	private final Logger logger = Logger.getLogger(AccessManager.class.getName());
 
-	private final Semaphore mutex = new Semaphore(1);
+	private final Lock lock = new ReentrantLock();
+
+	private final Condition condition = lock.newCondition();
 
 	private int waitingRotatorsTotalCount;
-	private final Map<RotatorType, Semaphore> waitingRotators;
 	private final Map<RotatorType, Integer> waitingRotatorCounts;
 
 	private int workingRotatorsCount;
 	private RotatorType workingRotatorType;
 
-	private final Semaphore waitingInspectors = new Semaphore(0);
 	private int waitingInspectorsCount;
 	private int workingInspectorsCount;
 
@@ -40,11 +41,9 @@ public class AccessManager {
 	 */
 	public AccessManager(int size) {
 		this.size = size;
-		this.waitingRotators = new HashMap<>();
 		this.waitingRotatorCounts = new HashMap<>();
 
 		for (var rotatorType : RotatorType.values()) {
-			waitingRotators.put(rotatorType, new Semaphore(0));
 			waitingRotatorCounts.put(rotatorType, 0);
 		}
 
@@ -56,16 +55,14 @@ public class AccessManager {
 
 	public void onBeforeRotation(int side, int layer) throws InterruptedException {
 		RotatorType rotator = RotatorType.get(side);
-		mutex.acquire();
-		if (shouldRotatorWait(rotator)) {
+		lock.lock();
+		while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator)) {
 			addWaitingRotatorInfo(rotator);
 			logger.info(Thread.currentThread().getName() + ": "
 					+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
 					+ waitingRotatorCounts);
 
-			mutex.release();
-			waitingRotators.get(rotator).acquireUninterruptibly();
-			// dziedziczenie ochrony
+			condition.await();
 
 			removeWaitingRotatorInfo(rotator);
 			logger.info(Thread.currentThread().getName() + ": "
@@ -73,7 +70,7 @@ public class AccessManager {
 					+ waitingRotatorCounts);
 		}
 		addWorkingRotatorInfo(rotator);
-		wakeNextWaitingRotator(rotator);
+		lock.unlock();
 
 		try {
 			getRotationLayerLock(side, layer).lockInterruptibly();
@@ -86,33 +83,16 @@ public class AccessManager {
 	public void onRotatorExit(int side) throws InterruptedException {
 		RotatorType rotatorType = RotatorType.get(side);
 
-		mutex.acquireUninterruptibly();
+		lock.lock();
 		removeWorkingRotatorInfo(rotatorType);
-		if (workingRotatorsCount == 0 && waitingInspectorsCount > 0) {
-			// Przekazanie ochrony
-			waitingInspectors.release();
-		} else if (workingRotatorsCount == 0 && waitingRotatorsTotalCount > 0) {
-			// Przekazanie ochrony
-			wakeUpWaitingRotators();
-		} else {
-			mutex.release();
+		if (workingRotatorsCount == 0) {
+			condition.signalAll();
 		}
+		lock.unlock();
 
 		if (Thread.interrupted()) {
 			throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 		}
-	}
-
-	private void wakeUpWaitingRotators() {
-		int next = new Random().nextInt(3);
-		RotatorType toWakeUp = RotatorType.get(next);
-
-		while (waitingRotatorsTotalCount > 0 && waitingRotatorCounts.get(toWakeUp) == 0) {
-			next = (next + 1) % 3;
-			toWakeUp = RotatorType.get(next);
-		}
-
-		waitingRotators.get(toWakeUp).release();
 	}
 
 	public void onAfterRotation(int side, int layer) throws InterruptedException {
@@ -121,16 +101,14 @@ public class AccessManager {
 	}
 
 	public void onInspectorEntry() throws InterruptedException {
-		mutex.acquire();
-		if (shouldInspectorWait()) {
+		lock.lock();
+		while (workingRotatorsCount > 0) {
 			++waitingInspectorsCount;
 			logger.info(Thread.currentThread().getName() + ": "
 					+ "Inspector " + " waiting. "
 					+ "Waiting inspectors: " + waitingInspectorsCount);
 
-			mutex.release();
-			waitingInspectors.acquireUninterruptibly();
-			// dziedziczenie ochrony
+			condition.await();
 
 			--waitingInspectorsCount;
 			logger.info(Thread.currentThread().getName() + ": "
@@ -138,7 +116,7 @@ public class AccessManager {
 					+ "Waiting inspectors: " + waitingInspectorsCount);
 		}
 		++workingInspectorsCount;
-		wakeNextWaitingInspector();
+		lock.unlock();
 
 		if (Thread.interrupted()) {
 			Thread.currentThread().interrupt();
@@ -147,28 +125,16 @@ public class AccessManager {
 	}
 
 	public void onInspectorExit() throws InterruptedException {
-		mutex.acquireUninterruptibly();
+		lock.lock();
 		--workingInspectorsCount;
-		if (workingInspectorsCount == 0 && waitingRotatorsTotalCount > 0) {
-			// przekazanie ochrony
-			wakeUpWaitingRotators();
-		} else if (workingInspectorsCount == 0 && waitingInspectorsCount > 0) {
-			// przekazanie ochrony
-			waitingInspectors.release();
-		} else {
-			mutex.release();
+		if (workingInspectorsCount == 0) {
+			condition.signalAll();
 		}
+		lock.unlock();
 
 		if (Thread.interrupted()) {
 			throw new InterruptedException("Inspector " + Thread.currentThread().getName() + "interrupted.");
 		}
-	}
-
-	private boolean shouldRotatorWait(RotatorType rotatorType) {
-		return workingInspectorsCount > 0
-				|| waitingInspectorsCount > 0
-				|| (workingRotatorType != null && workingRotatorType != rotatorType)
-				|| waitingRotatorsTotalCount > 0;
 	}
 
 	private void addWaitingRotatorInfo(RotatorType rotatorType) {
@@ -191,31 +157,6 @@ public class AccessManager {
 		if (workingRotatorsCount == 0) {
 			// ostatni obracający
 			workingRotatorType = null;
-		}
-	}
-
-	// Kaskadowe budzenie czekających obracaczy
-	private void wakeNextWaitingRotator(RotatorType rotatorType) {
-		if (waitingRotatorCounts.get(rotatorType) > 0) {
-			// przekazanie ochrony
-			waitingRotators.get(rotatorType).release();
-		} else {
-			mutex.release();
-		}
-	}
-
-	private boolean shouldInspectorWait() {
-		// Czeka jeśli ktoś obraca lub chce obracać.
-		return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
-	}
-
-	// Kaskadowe budzenie czekających oglądaczy
-	private void wakeNextWaitingInspector() {
-		if (waitingInspectorsCount > 0) {
-			waitingInspectors.release();
-			// przekazanie ochrony
-		} else {
-			mutex.release();
 		}
 	}
 
