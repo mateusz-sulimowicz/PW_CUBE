@@ -111,11 +111,11 @@ public class Cube {
 				throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 			}
 
-			getRotationLayerLock(side, layer).lock();
-
-			if (Thread.interrupted()) {
+			try {
+				getRotationLayerLock(side, layer).lockInterruptibly();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				onRotatorExit(side);
-				throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 			}
 		}
 
