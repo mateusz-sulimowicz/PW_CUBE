@@ -15,7 +15,7 @@ public class AccessManager {
 
 	private final Lock lock = new ReentrantLock();
 
-	private final Condition condition = lock.newCondition();
+	private final Condition isCubeAvailable = lock.newCondition();
 
 	private int waitingRotatorsTotalCount;
 	private final Map<RotatorType, Integer> waitingRotatorCounts;
@@ -54,41 +54,50 @@ public class AccessManager {
 	public void onBeforeRotation(int side, int layer) throws InterruptedException {
 		RotatorType rotator = RotatorType.get(side);
 		lock.lock();
-		if (shouldRotatorWait(rotator)) {
-			addWaitingRotatorInfo(rotator);
-			logger.info(Thread.currentThread().getName() + ":  "
-					+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
-					+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount + "working inspectors: "
-					+ workingInspectorsCount + "working rotators: " + workingRotatorsCount + "working rotator type: " + workingRotatorType);
-
-			try {
-				do {
-					condition.await();
-				} while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator));
-			} catch (InterruptedException e) {
-				removeWaitingRotatorInfo(rotator);
+		try {
+			if (shouldRotatorWait(rotator)) {
+				addWaitingRotatorInfo(rotator);
 				logger.info(Thread.currentThread().getName() + ":  "
-						+  "JESTEM PRZERWANY! " + Thread.currentThread().getName()  + " Waiting rotators: " + waitingRotatorsTotalCount + " "
-						+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount + "working inspectors: "
-						+ workingInspectorsCount + "working rotators: " + workingRotatorsCount + "working rotator type: " + workingRotatorType);
+						+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
+						+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount
+						+ "working inspectors: "
+						+ workingInspectorsCount + "working rotators: " + workingRotatorsCount
+						+ "working rotator type: " + workingRotatorType);
 
-				if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
-					condition.signalAll();
+				try {
+					do {
+						isCubeAvailable.await();
+					} while (workingInspectorsCount > 0 || (workingRotatorType != null
+							&& workingRotatorType != rotator));
+				} catch (InterruptedException e) {
+					removeWaitingRotatorInfo(rotator);
+					logger.info(Thread.currentThread().getName() + ":  "
+							+ "JESTEM PRZERWANY! " + Thread.currentThread().getName() + " Waiting rotators: "
+							+ waitingRotatorsTotalCount + " "
+							+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount
+							+ "working inspectors: "
+							+ workingInspectorsCount + "working rotators: " + workingRotatorsCount
+							+ "working rotator type: " + workingRotatorType);
+
+					if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+						isCubeAvailable.signalAll();
+					}
+
+					lock.unlock();
+					throw e;
 				}
 
-				lock.unlock();
-				throw e;
+				removeWaitingRotatorInfo(rotator);
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Rotator " + rotator + " awaken. Waiting rotators: " + waitingRotatorsTotalCount + " "
+						+ waitingRotatorCounts);
 			}
 
-			removeWaitingRotatorInfo(rotator);
-			logger.info(Thread.currentThread().getName() + ": "
-					+ "Rotator " + rotator + " awaken. Waiting rotators: " + waitingRotatorsTotalCount + " "
-					+ waitingRotatorCounts);
+			logger.info(Thread.currentThread().getName() + " WCHODZE OBRACAACZ!: " + rotator);
+			addWorkingRotatorInfo(rotator);
+		} finally {
+			lock.unlock();
 		}
-
-		logger.info(Thread.currentThread().getName() + " WCHODZE OBRACAACZ!: " + rotator);
-		addWorkingRotatorInfo(rotator);
-		lock.unlock();
 
 		getRotationLayerLock(side, layer).lock();
 	}
@@ -100,7 +109,7 @@ public class AccessManager {
 		removeWorkingRotatorInfo(rotatorType);
 		if (workingRotatorsCount == 0) {
 			logger.info("JESTEM obracaczem!!: budze was!" + rotatorType);
-			condition.signalAll();
+			isCubeAvailable.signalAll();
 		}
 		logger.info("WYCHODZE OBRACAACZ!: " + rotatorType);
 		lock.unlock();
@@ -117,32 +126,34 @@ public class AccessManager {
 
 	public void onInspectorEntry() throws InterruptedException {
 		lock.lock();
-		if (shouldInspectorWait()) {
-			++waitingInspectorsCount;
-			logger.info(Thread.currentThread().getName() + ": "
-					+ "Inspector " + " waiting. "
-					+ "Waiting inspectors: " + waitingInspectorsCount);
+		try {
+			if (shouldInspectorWait()) {
+				++waitingInspectorsCount;
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Inspector " + " waiting. "
+						+ "Waiting inspectors: " + waitingInspectorsCount);
 
-			try {
-				do  {
-					condition.await();
-				} while (workingRotatorsCount > 0);
-			} catch (InterruptedException e) {
-				--waitingInspectorsCount;
-				if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
-					condition.signalAll();
+				try {
+					do {
+						isCubeAvailable.await();
+					} while (workingRotatorsCount > 0);
+				} catch (InterruptedException e) {
+					--waitingInspectorsCount;
+					if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+						isCubeAvailable.signalAll();
+					}
+					throw e;
 				}
-				lock.unlock();
-				throw e;
-			}
 
-			--waitingInspectorsCount;
-			logger.info(Thread.currentThread().getName() + ": "
-					+ "Inspector " + " awaken. "
-					+ "Waiting inspectors: " + waitingInspectorsCount);
+				--waitingInspectorsCount;
+				logger.info(Thread.currentThread().getName() + ": "
+						+ "Inspector " + " awaken. "
+						+ "Waiting inspectors: " + waitingInspectorsCount);
+			}
+			++workingInspectorsCount;
+		} finally {
+			lock.unlock();
 		}
-		++workingInspectorsCount;
-		lock.unlock();
 	}
 
 	public void onInspectorExit() throws InterruptedException {
@@ -150,7 +161,7 @@ public class AccessManager {
 		--workingInspectorsCount;
 		if (workingInspectorsCount == 0) {
 			logger.info("JESTEM ogladaczem budze was!!: ");
-			condition.signalAll();
+			isCubeAvailable.signalAll();
 		}
 		lock.unlock();
 
