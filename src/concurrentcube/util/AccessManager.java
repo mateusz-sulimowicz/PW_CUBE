@@ -11,8 +11,6 @@ import concurrentcube.rotation.RotatorType;
 
 public class AccessManager {
 
-	private final Logger logger = Logger.getLogger(AccessManager.class.getName());
-
 	private final Lock lock = new ReentrantLock();
 
 	private final Condition isCubeAvailable = lock.newCondition();
