@@ -140,8 +140,8 @@ public class CubeRotator {
 
 		state.setColumn(TOP, frontColumn, size - 1 - layer);
 		state.setColumn(BACK, reverse(topColumn), layer);
-		state.setColumn(BOTTOM, backColumn, size - 1- layer);
-		state.setColumn(FRONT, reverse(bottomColumn), size - 1 - layer);
+		state.setColumn(BOTTOM, reverse(backColumn), size - 1- layer);
+		state.setColumn(FRONT, bottomColumn, size - 1 - layer);
 	}
 
 	private void rotateSideClockwise(int side) {

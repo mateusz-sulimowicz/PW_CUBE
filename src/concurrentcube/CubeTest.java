@@ -10,6 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 
 import concurrentcube.rotation.RotatorType;
@@ -190,6 +191,26 @@ public class CubeTest {
 		}
 	}
 
+	@Test
+	public void shouldShowSolvedCubeAfterCyclicRotations() {
+		try {
+			for (int i = 0; i < 1260; i++) {
+				cube.rotate(3, 0);
+				cube.rotate(0, 0);
+				cube.rotate(0, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+				cube.rotate(4, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+			}
+			Assertions.assertEquals(cube.show(), SOLVED_EXPECTED);
+		} catch (InterruptedException ignored) {
+		}
+	}
+
 	private static final String LEFT1_BACK2_EXPECTED =
 			"0400"
 					+ "0400"
@@ -268,10 +289,11 @@ public class CubeTest {
 			cube.rotate(1, 2);
 			cube.rotate(5, 1);
 			Assertions.assertEquals(cube.show(), FRONT2_LEFT2_BOTTOM1_EXPECTED);
-		} catch (InterruptedException ignored) {}
+		} catch (InterruptedException ignored) {
+		}
 	}
 
-	private static final int PARALLEL_ROTATORS = 100;
+	private static final int PARALLEL_ROTATORS = 420;
 
 	@Test
 	public void shouldRotateParallelLayersConcurrently() {
@@ -293,7 +315,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int CONCURRENT_INSPECTORS = 100;
+	private static final int CONCURRENT_INSPECTORS = 420;
 
 	@Test
 	public void shouldInspectCubeConcurrently() {
@@ -314,11 +336,12 @@ public class CubeTest {
 		}
 	}
 
-	private static final int DEADLOCK_TEST_ATTEMPTS = 100;
+	private static final int DEADLOCK_TEST_ATTEMPTS = 420;
 	private static final int CUBE_SIZE = 42;
 	private static final int WORKER_TYPES = 7;
 
 	@Test
+	@RepeatedTest(DEADLOCK_TEST_ATTEMPTS)
 	public void shouldNotDeadlock() {
 		cube = new Cube(CUBE_SIZE,
 				(x, y) -> {},
@@ -326,8 +349,7 @@ public class CubeTest {
 				() -> {},
 				waitingThreadsCount::decrementAndGet);
 
-		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
-			// given
+		// given
 			List<Thread> inspectors = getInspectors(CUBE_SIZE);
 			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
 			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
@@ -351,18 +373,16 @@ public class CubeTest {
 				Thread.currentThread().interrupt();
 				System.out.println("Main thread interrupted!");
 			}
-		}
 	}
 
 	@Test
+	@RepeatedTest(DEADLOCK_TEST_ATTEMPTS)
 	public void shouldNotDeadlockWhenInterruptedRotators() {
 		cube = new Cube(CUBE_SIZE,
 				(x, y) -> {},
 				(x, y) -> {},
 				() -> {},
 				() -> waitingThreadsCount.decrementAndGet());
-
-		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
 			// given
 			List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
@@ -390,10 +410,11 @@ public class CubeTest {
 			} catch (InterruptedException ignored) {
 				Thread.currentThread().interrupt();
 			}
-		}
+
 	}
 
 	@Test
+	@RepeatedTest(DEADLOCK_TEST_ATTEMPTS)
 	public void shouldNotDeadlockWhenInterruptedInspectors() {
 		cube = new Cube(CUBE_SIZE,
 				(x, y) -> {},
@@ -401,8 +422,7 @@ public class CubeTest {
 				() -> {},
 				() -> {});
 
-		for (int i = 0; i < DEADLOCK_TEST_ATTEMPTS; ++i) {
-			// given
+		// given
 			List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
 			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
@@ -429,12 +449,13 @@ public class CubeTest {
 			} catch (InterruptedException ignored) {
 				Thread.currentThread().interrupt();
 			}
-		}
+
 	}
 
-	private static final int SECURITY_TEST_ATTEMPTS = 100;
+	private static final int SECURITY_TEST_ATTEMPTS = 420;
 
 	@Test
+	@RepeatedTest(SECURITY_TEST_ATTEMPTS)
 	public void shouldNotViolateCubeAccess() {
 		CubeAccessData accessData = new CubeAccessData();
 
@@ -444,8 +465,7 @@ public class CubeTest {
 				accessData::notifyInspectorEntrance,
 				accessData::notifyInspectorExit);
 
-		for (int i = 0; i < SECURITY_TEST_ATTEMPTS; ++i) {
-			// given
+		// given
 			List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
 			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
@@ -469,15 +489,15 @@ public class CubeTest {
 				Assertions.assertFalse(accessData.isSecurityViolated());
 			} catch (InterruptedException ignored) {
 			}
-		}
 	}
 
-	private static final int ROTATION_TRIES = 100;
+	private static final int ROTATION_TRIES = 420;
 
 	// Checks, whether after many rotation
 	// cube still contains correct numbers of squares
 	// of every color.
 	@Test
+	@RepeatedTest(ROTATION_TRIES)
 	public void shouldCubeHaveSameNumbersOfTilesAsSolved() {
 		// given
 		Map<Integer, Integer> tileCounts = new HashMap<>();
@@ -485,7 +505,6 @@ public class CubeTest {
 
 		// when
 		try {
-			for (int i = 0; i < ROTATION_TRIES; ++i) {
 				List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
 				List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
@@ -499,7 +518,6 @@ public class CubeTest {
 
 				startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
-			}
 
 			// then
 			String cubeRepresentation = cube.show();
