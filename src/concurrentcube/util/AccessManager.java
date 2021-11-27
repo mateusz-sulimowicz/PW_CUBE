@@ -2,15 +2,12 @@ package concurrentcube.util;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
 import concurrentcube.rotation.RotatorType;
-import jdk.swing.interop.SwingInterOpUtils;
 
 public class AccessManager {
 
@@ -57,26 +54,30 @@ public class AccessManager {
 	public void onBeforeRotation(int side, int layer) throws InterruptedException {
 		RotatorType rotator = RotatorType.get(side);
 		lock.lock();
-		while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator)) {
-
+		if (shouldRotatorWait(rotator)) {
 			addWaitingRotatorInfo(rotator);
 			logger.info(Thread.currentThread().getName() + ":  "
 					+ "Rotator " + rotator + " waiting. Waiting rotators: " + waitingRotatorsTotalCount + " "
 					+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount + "working inspectors: "
-					+ workingInspectorsCount  + "working rotators: " + workingRotatorsCount);
+					+ workingInspectorsCount + "working rotators: " + workingRotatorsCount + "working rotator type: " + workingRotatorType);
 
 			try {
-				condition.await();
+				do {
+					condition.await();
+				} while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator));
 			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				lock.lock();
-				try {
-					removeWaitingRotatorInfo(rotator);
-					addWorkingRotatorInfo(rotator);
-					onRotatorExit(side);
-				} finally {
-					lock.unlock();
+				removeWaitingRotatorInfo(rotator);
+				logger.info(Thread.currentThread().getName() + ":  "
+						+  "JESTEM PRZERWANY! " + Thread.currentThread().getName()  + " Waiting rotators: " + waitingRotatorsTotalCount + " "
+						+ waitingRotatorCounts + "waiting inspectors: " + waitingInspectorsCount + "working inspectors: "
+						+ workingInspectorsCount + "working rotators: " + workingRotatorsCount + "working rotator type: " + workingRotatorType);
+
+				if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+					condition.signalAll();
 				}
+
+				lock.unlock();
+				throw e;
 			}
 
 			removeWaitingRotatorInfo(rotator);
@@ -84,7 +85,8 @@ public class AccessManager {
 					+ "Rotator " + rotator + " awaken. Waiting rotators: " + waitingRotatorsTotalCount + " "
 					+ waitingRotatorCounts);
 		}
-		logger.info("WCHODZE OBRACAACZ!");
+
+		logger.info(Thread.currentThread().getName() + " WCHODZE OBRACAACZ!: " + rotator);
 		addWorkingRotatorInfo(rotator);
 		lock.unlock();
 
@@ -97,8 +99,10 @@ public class AccessManager {
 		lock.lock();
 		removeWorkingRotatorInfo(rotatorType);
 		if (workingRotatorsCount == 0) {
+			logger.info("JESTEM obracaczem!!: budze was!" + rotatorType);
 			condition.signalAll();
 		}
+		logger.info("WYCHODZE OBRACAACZ!: " + rotatorType);
 		lock.unlock();
 
 		if (Thread.interrupted()) {
@@ -113,24 +117,23 @@ public class AccessManager {
 
 	public void onInspectorEntry() throws InterruptedException {
 		lock.lock();
-		while (workingRotatorsCount > 0) {
+		if (shouldInspectorWait()) {
 			++waitingInspectorsCount;
 			logger.info(Thread.currentThread().getName() + ": "
 					+ "Inspector " + " waiting. "
 					+ "Waiting inspectors: " + waitingInspectorsCount);
 
 			try {
-				condition.await();
+				do  {
+					condition.await();
+				} while (workingRotatorsCount > 0);
 			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				lock.lock();
-				try {
-					--waitingInspectorsCount;
-					++workingInspectorsCount;
-					onInspectorExit();
-				} finally {
-					lock.unlock();
+				--waitingInspectorsCount;
+				if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+					condition.signalAll();
 				}
+				lock.unlock();
+				throw e;
 			}
 
 			--waitingInspectorsCount;
@@ -146,7 +149,7 @@ public class AccessManager {
 		lock.lock();
 		--workingInspectorsCount;
 		if (workingInspectorsCount == 0) {
-			System.out.println("Jestem ogladaczem, budze was!!!");
+			logger.info("JESTEM ogladaczem budze was!!: ");
 			condition.signalAll();
 		}
 		lock.unlock();
@@ -177,6 +180,18 @@ public class AccessManager {
 			// ostatni obracający
 			workingRotatorType = null;
 		}
+	}
+
+	private boolean shouldRotatorWait(RotatorType rotatorType) {
+		return workingInspectorsCount > 0
+				|| waitingInspectorsCount > 0
+				|| (workingRotatorType != null && workingRotatorType != rotatorType)
+				|| waitingRotatorsTotalCount > 0;
+	}
+
+	private boolean shouldInspectorWait() {
+		// Czeka jeśli ktoś obraca lub chce obracać.
+		return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
 	}
 
 	private Lock getRotationLayerLock(int side, int layer) {
