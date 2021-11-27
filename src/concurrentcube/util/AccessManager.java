@@ -51,93 +51,65 @@ public class AccessManager {
 		}
 	}
 
-	public void onBeforeRotation(int side, int layer) throws InterruptedException {
-		RotatorType rotator = RotatorType.get(side);
+	// ---------- OBRACANIE KOSTKI ------------
+
+	public void onRotatorEntry(int side, int layer) throws InterruptedException {
 		lock.lockInterruptibly();
+		RotatorType rotator = RotatorType.get(side);
 		addWaitingRotatorInfo(rotator);
 		try {
 			if (shouldRotatorWait(rotator)) {
-				logger.info(Thread.currentThread().getName() + ": rotator " + rotator + " waiting. ");
-				logWorkersState();
-
-				do {
-					isCubeAvailable.await();
-				} while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator));
-
-				logger.info(Thread.currentThread().getName() + ": " + "rotator " + rotator + " awaken.");
-				logWorkersState();
+				waitBeforeRotationAccess(rotator);
 			}
-
-			logger.info(Thread.currentThread().getName() + " rotator " + rotator + " entering cube");
-			logWorkersState();
-
 			addWorkingRotatorInfo(rotator);
 		} catch (InterruptedException e) {
-
-			if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
-				isCubeAvailable.signalAll();
-			}
-
-			logger.info(Thread.currentThread().getName() + ": rotator " + rotator + " interrupted. ");
-			logWorkersState();
+			notifyAllIfCubeIsUnoccupied();
 			throw e;
 		} finally {
 			removeWaitingRotatorInfo(rotator);
 			lock.unlock();
 		}
 
-		getRotationLayerLock(side, layer).lock();
+		onBeforeRotation(side, layer);
 	}
 
-	public void onRotatorExit(int side) throws InterruptedException {
-		RotatorType rotatorType = RotatorType.get(side);
+	private void onBeforeRotation(int side, int layer) throws InterruptedException {
+		try {
+			getRotationLayerLock(side, layer).lockInterruptibly();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			onAfterRotation(side, layer);
+		}
+	}
+
+	private void onAfterRotation(int side, int layer) throws InterruptedException {
+		getRotationLayerLock(side, layer).unlock();
+	}
+
+	public void onRotatorExit(int side, int layer) throws InterruptedException {
+		onAfterRotation(side, layer);
+
 		lock.lock();
 		removeWorkingRotatorInfo();
-		if (workingRotatorsCount == 0) {
-			isCubeAvailable.signalAll();
-		}
-
-		logger.info(Thread.currentThread().getName() + " rotator " + rotatorType + " exiting cube");
-		logWorkersState();
-
+		notifyAllIfCubeIsUnoccupied();
 		lock.unlock();
-
 		if (Thread.interrupted()) {
 			throw new InterruptedException("Rotator " + Thread.currentThread().getName() + "interrupted.");
 		}
 	}
 
-	public void onAfterRotation(int side, int layer) throws InterruptedException {
-		getRotationLayerLock(side, layer).unlock();
-		onRotatorExit(side);
-	}
+	// -------- OGLĄDANIE KOSTKI ---------
 
 	public void onInspectorEntry() throws InterruptedException {
 		lock.lock();
 		++waitingInspectorsCount;
 		try {
 			if (shouldInspectorWait()) {
-				logger.info(Thread.currentThread().getName() + ": " + "inspector " + " waiting. ");
-				logWorkersState();
-
-				do {
-					isCubeAvailable.await();
-				} while (workingRotatorsCount > 0);
-
-				logger.info(Thread.currentThread().getName() + ": " + "inspector " + " awaken. ");
-				logWorkersState();
-
+				waitBeforeInspectionAccess();
 			}
 			++workingInspectorsCount;
-			logger.info(Thread.currentThread().getName() + ": " + "inspector " + " entering cube. ");
-			logWorkersState();
 		} catch (InterruptedException e) {
-			if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
-				isCubeAvailable.signalAll();
-			}
-
-			logger.info(Thread.currentThread().getName() + ": " + "inspector " + "interruped.");
-			logWorkersState();
+			notifyAllIfCubeIsUnoccupied();
 			throw e;
 		} finally {
 			--waitingInspectorsCount;
@@ -148,13 +120,7 @@ public class AccessManager {
 	public void onInspectorExit() throws InterruptedException {
 		lock.lock();
 		--workingInspectorsCount;
-		if (workingInspectorsCount == 0) {
-			isCubeAvailable.signalAll();
-		}
-
-		logger.info(Thread.currentThread().getName() + ": " + "inspector " + " exiting cube. ");
-		logWorkersState();
-
+		notifyAllIfCubeIsUnoccupied();
 		lock.unlock();
 
 		if (Thread.interrupted()) {
@@ -162,9 +128,33 @@ public class AccessManager {
 		}
 	}
 
+	// ------ metody pomocnicze ------
+
 	private void addWaitingRotatorInfo(RotatorType rotatorType) {
 		waitingRotatorCounts.merge(rotatorType, 1, Integer::sum);
 		++waitingRotatorsTotalCount;
+	}
+
+	private boolean areOtherRotatorTypesWaiting(RotatorType rotatorType) {
+		for (RotatorType rotator : waitingRotatorCounts.keySet()) {
+			if (rotator != rotatorType && waitingRotatorCounts.get(rotator) > 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean shouldRotatorWait(RotatorType rotatorType) {
+		return workingInspectorsCount > 0
+				|| waitingInspectorsCount > 0
+				|| (workingRotatorType != null && workingRotatorType != rotatorType)
+				|| areOtherRotatorTypesWaiting(rotatorType);
+	}
+
+	private void waitBeforeRotationAccess(RotatorType rotator) throws InterruptedException {
+		do {
+			isCubeAvailable.await();
+		} while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator));
 	}
 
 	private void removeWaitingRotatorInfo(RotatorType rotatorType) {
@@ -177,35 +167,6 @@ public class AccessManager {
 		workingRotatorType = rotatorType;
 	}
 
-	public void removeWorkingRotatorInfo() {
-		--workingRotatorsCount;
-		if (workingRotatorsCount == 0) {
-			// ostatni obracający
-			workingRotatorType = null;
-		}
-	}
-
-	private boolean shouldRotatorWait(RotatorType rotatorType) {
-		return workingInspectorsCount > 0
-				|| waitingInspectorsCount > 0
-				|| (workingRotatorType != null && workingRotatorType != rotatorType)
-				|| areOtherRotatorTypesWaiting(rotatorType);
-	}
-
-	private boolean areOtherRotatorTypesWaiting(RotatorType rotatorType) {
-		for (RotatorType rotator : waitingRotatorCounts.keySet()) {
-			if (rotator != rotatorType && waitingRotatorCounts.get(rotator) > 0) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private boolean shouldInspectorWait() {
-		// Czeka jeśli ktoś obraca lub chce obracać.
-		return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
-	}
-
 	private Lock getRotationLayerLock(int side, int layer) {
 		if (side == 0 || side == 1 || side == 2) {
 			return rotationLayersLocks[layer];
@@ -214,12 +175,29 @@ public class AccessManager {
 		}
 	}
 
-	private void logWorkersState() {
-		logger.info("Waiting rotators: " + waitingRotatorCounts
-				+ ". Waiting inspectors: " + waitingInspectorsCount
-				+ ". Working rotators: type: " + workingRotatorType
-				+ " amount: " + workingRotatorsCount
-				+ ". Working inspectors: " + workingInspectorsCount);
+	public void removeWorkingRotatorInfo() {
+		--workingRotatorsCount;
+		if (workingRotatorsCount == 0) {
+			// ostatni obracający
+			workingRotatorType = null;
+		}
+	}
+
+	private boolean shouldInspectorWait() {
+		// Czeka jeśli ktoś obraca lub chce obracać.
+		return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
+	}
+
+	private void waitBeforeInspectionAccess() throws InterruptedException {
+		do {
+			isCubeAvailable.await();
+		} while (workingRotatorsCount > 0);
+	}
+
+	private void notifyAllIfCubeIsUnoccupied() {
+		if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+			isCubeAvailable.signalAll();
+		}
 	}
 
 }
