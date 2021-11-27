@@ -10,7 +10,7 @@ import concurrentcube.rotation.RotatorType;
 
 public class AccessManager {
 
-	private final Lock lock = new ReentrantLock();
+	private final Lock lock = new ReentrantLock(true);
 
 	private final Condition isCubeAvailable = lock.newCondition();
 
