@@ -53,33 +53,17 @@ public class AccessManager {
 
 	public void onBeforeRotation(int side, int layer) throws InterruptedException {
 		RotatorType rotator = RotatorType.get(side);
-		lock.lock();
+		lock.lockInterruptibly();
+		addWaitingRotatorInfo(rotator);
 		try {
 			if (shouldRotatorWait(rotator)) {
-				addWaitingRotatorInfo(rotator);
 				logger.info(Thread.currentThread().getName() + ": rotator " + rotator + " waiting. ");
 				logWorkersState();
 
-				try {
-					do {
-						isCubeAvailable.await();
-					} while (workingInspectorsCount > 0 || (workingRotatorType != null
-							&& workingRotatorType != rotator));
-				} catch (InterruptedException e) {
-					removeWaitingRotatorInfo(rotator);
+				do {
+					isCubeAvailable.await();
+				} while (workingInspectorsCount > 0 || (workingRotatorType != null && workingRotatorType != rotator));
 
-					if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
-						isCubeAvailable.signalAll();
-					}
-
-					logger.info(Thread.currentThread().getName() + ": rotator " + rotator + " interrupted. ");
-					logWorkersState();
-
-					lock.unlock();
-					throw e;
-				}
-
-				removeWaitingRotatorInfo(rotator);
 				logger.info(Thread.currentThread().getName() + ": " + "rotator " + rotator + " awaken.");
 				logWorkersState();
 			}
@@ -88,7 +72,17 @@ public class AccessManager {
 			logWorkersState();
 
 			addWorkingRotatorInfo(rotator);
+		} catch (InterruptedException e) {
+
+			if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+				isCubeAvailable.signalAll();
+			}
+
+			logger.info(Thread.currentThread().getName() + ": rotator " + rotator + " interrupted. ");
+			logWorkersState();
+			throw e;
 		} finally {
+			removeWaitingRotatorInfo(rotator);
 			lock.unlock();
 		}
 
@@ -97,9 +91,8 @@ public class AccessManager {
 
 	public void onRotatorExit(int side) throws InterruptedException {
 		RotatorType rotatorType = RotatorType.get(side);
-
 		lock.lock();
-		removeWorkingRotatorInfo(rotatorType);
+		removeWorkingRotatorInfo();
 		if (workingRotatorsCount == 0) {
 			isCubeAvailable.signalAll();
 		}
@@ -121,29 +114,16 @@ public class AccessManager {
 
 	public void onInspectorEntry() throws InterruptedException {
 		lock.lock();
+		++waitingInspectorsCount;
 		try {
 			if (shouldInspectorWait()) {
-				++waitingInspectorsCount;
 				logger.info(Thread.currentThread().getName() + ": " + "inspector " + " waiting. ");
 				logWorkersState();
 
-				try {
-					do {
-						isCubeAvailable.await();
-					} while (workingRotatorsCount > 0);
-				} catch (InterruptedException e) {
-					--waitingInspectorsCount;
-					if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
-						isCubeAvailable.signalAll();
-					}
+				do {
+					isCubeAvailable.await();
+				} while (workingRotatorsCount > 0);
 
-					logger.info(Thread.currentThread().getName() + ": " + "inspector " + "interruped.");
-					logWorkersState();
-
-					throw e;
-				}
-
-				--waitingInspectorsCount;
 				logger.info(Thread.currentThread().getName() + ": " + "inspector " + " awaken. ");
 				logWorkersState();
 
@@ -151,7 +131,16 @@ public class AccessManager {
 			++workingInspectorsCount;
 			logger.info(Thread.currentThread().getName() + ": " + "inspector " + " entering cube. ");
 			logWorkersState();
+		} catch (InterruptedException e) {
+			if (workingRotatorsCount == 0 && workingInspectorsCount == 0) {
+				isCubeAvailable.signalAll();
+			}
+
+			logger.info(Thread.currentThread().getName() + ": " + "inspector " + "interruped.");
+			logWorkersState();
+			throw e;
 		} finally {
+			--waitingInspectorsCount;
 			lock.unlock();
 		}
 	}
@@ -188,7 +177,7 @@ public class AccessManager {
 		workingRotatorType = rotatorType;
 	}
 
-	public void removeWorkingRotatorInfo(RotatorType rotatorType) {
+	public void removeWorkingRotatorInfo() {
 		--workingRotatorsCount;
 		if (workingRotatorsCount == 0) {
 			// ostatni obracający
@@ -200,7 +189,16 @@ public class AccessManager {
 		return workingInspectorsCount > 0
 				|| waitingInspectorsCount > 0
 				|| (workingRotatorType != null && workingRotatorType != rotatorType)
-				|| waitingRotatorsTotalCount > 0;
+				|| areOtherRotatorTypesWaiting(rotatorType);
+	}
+
+	private boolean areOtherRotatorTypesWaiting(RotatorType rotatorType) {
+		for (RotatorType rotator : waitingRotatorCounts.keySet()) {
+			if (rotator != rotatorType && waitingRotatorCounts.get(rotator) > 0) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private boolean shouldInspectorWait() {

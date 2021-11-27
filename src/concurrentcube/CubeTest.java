@@ -269,7 +269,7 @@ public class CubeTest {
 		} catch (InterruptedException ignored) {}
 	}
 
-	private static final int PARALLEL_ROTATORS = 500;
+	private static final int PARALLEL_ROTATORS = 1000;
 
 	@Test
 	public void shouldRotateParallelLayersConcurrently() {
@@ -291,7 +291,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int CONCURRENT_INSPECTORS = 500;
+	private static final int CONCURRENT_INSPECTORS = 1000;
 
 	@Test
 	public void shouldInspectCubeConcurrently() {
@@ -312,7 +312,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int DEADLOCK_TEST_ATTEMPTS = 500;
+	private static final int DEADLOCK_TEST_ATTEMPTS = 1000;
 	private static final int CUBE_SIZE = 42;
 	private static final int WORKER_TYPES = 7;
 
@@ -470,7 +470,7 @@ public class CubeTest {
 		}
 	}
 
-	private static final int ROTATION_TRIES = 1000;
+	private static final int ROTATION_TRIES = 500;
 
 	// Sprawdza, czy po dużej liczbie obrotów,
 	// na kostce dalej jest size * size
