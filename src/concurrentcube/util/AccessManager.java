@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Logger;
 
 import concurrentcube.rotation.RotatorType;
 
@@ -57,6 +56,8 @@ public class AccessManager {
 		addWaitingRotatorInfo(rotator);
 		try {
 			if (shouldRotatorWait(rotator)) {
+				// Jeśli wątek nie powinien wejść do kostki to czeka.
+				// Zapobiega braku bezpieczeństwa i zagłodzeniu
 				waitBeforeRotationAccess(rotator);
 			}
 			addWorkingRotatorInfo(rotator);
@@ -103,6 +104,8 @@ public class AccessManager {
 		++waitingInspectorsCount;
 		try {
 			if (shouldInspectorWait()) {
+				// Jeśli wątek nie powinien wejść do kostki to czeka.
+				// Zapobiega braku bezpieczeństwa i zagłodzeniu
 				waitBeforeInspectionAccess();
 			}
 			++workingInspectorsCount;
@@ -143,6 +146,9 @@ public class AccessManager {
 	}
 
 	private boolean shouldRotatorWait(RotatorType rotatorType) {
+		// Czeka jeśli ktoś ogląda kostkę lub chce oglądać
+		// lub obracajce wątki z nim kolidują
+		// lub czekają wątki obracające w kolidujący z nim sposób.
 		return workingInspectorsCount > 0
 				|| waitingInspectorsCount > 0
 				|| (workingRotatorType != null && workingRotatorType != rotatorType)
