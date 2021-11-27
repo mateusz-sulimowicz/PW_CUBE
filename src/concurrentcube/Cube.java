@@ -8,9 +8,9 @@ import concurrentcube.structure.CubeState;
 import concurrentcube.util.AccessManager;
 
 /**
- * Reprezentuje kostkę Rubika, na której
- * obroty niekolidujących warstw
- * mogą być wykonywane współbieżnie.
+ * Represents Rubik's cube that
+ * enables executing non-colliding 
+ * rotations concurrently.
  */
 public class Cube {
 
