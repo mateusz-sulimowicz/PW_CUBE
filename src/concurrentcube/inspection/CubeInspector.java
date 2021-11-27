@@ -3,10 +3,6 @@ package concurrentcube.inspection;
 import concurrentcube.util.AccessManager;
 import concurrentcube.structure.CubeState;
 
-/**
- * Zajmuje się oglądaniem kostki.
- * Czeka na swoją kolei, gdy ktoś obraca lub chce obracać kostkę.
- */
 public class CubeInspector {
 
 	private final CubeState cube;

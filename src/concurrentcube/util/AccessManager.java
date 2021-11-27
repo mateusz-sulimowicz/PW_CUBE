@@ -27,13 +27,6 @@ public class AccessManager {
 
 	private final int size;
 
-	/**
-	 * Menedżer dostępu do kostki. Zapobiega:
-	 * - równoczesnym obrotom kolidujących warstw,
-	 * - równoczesnemu oglądaniu i obracaniu kostki
-	 * - zagłodzeniu wątków czekających na swoją kolej.
-	 * Zajmuje się również obsługą przerwań wątków pracujących na kostce.
-	 */
 	public AccessManager(int size) {
 		this.size = size;
 		this.waitingRotatorCounts = new HashMap<>();
@@ -48,7 +41,7 @@ public class AccessManager {
 		}
 	}
 
-	// ---------- OBRACANIE KOSTKI ------------
+	// ---------- CUBE ROTATION ------------
 
 	public void onRotatorEntry(int side, int layer) throws InterruptedException {
 		lock.lockInterruptibly();
@@ -56,8 +49,9 @@ public class AccessManager {
 		addWaitingRotatorInfo(rotator);
 		try {
 			if (shouldRotatorWait(rotator)) {
-				// Jeśli wątek nie powinien wejść do kostki to czeka.
-				// Zapobiega braku bezpieczeństwa i zagłodzeniu
+				// If thread should not enter the cube right now,
+				// it is supposed to wait
+				// until being notified that cube is unoccupied.
 				waitBeforeRotationAccess(rotator);
 			}
 			addWorkingRotatorInfo(rotator);
@@ -97,15 +91,16 @@ public class AccessManager {
 		}
 	}
 
-	// -------- OGLĄDANIE KOSTKI ---------
+	// -------- CUBE INSPECTION ---------
 
 	public void onInspectorEntry() throws InterruptedException {
 		lock.lock();
 		++waitingInspectorsCount;
 		try {
 			if (shouldInspectorWait()) {
-				// Jeśli wątek nie powinien wejść do kostki to czeka.
-				// Zapobiega braku bezpieczeństwa i zagłodzeniu
+				// If thread should not enter the cube right now,
+				// it is supposed to wait
+				// until being notified that cube is unoccupied.
 				waitBeforeInspectionAccess();
 			}
 			++workingInspectorsCount;
@@ -129,7 +124,7 @@ public class AccessManager {
 		}
 	}
 
-	// ------ metody pomocnicze ------
+	// ------ helper methods ------
 
 	private void addWaitingRotatorInfo(RotatorType rotatorType) {
 		waitingRotatorCounts.merge(rotatorType, 1, Integer::sum);
@@ -146,9 +141,10 @@ public class AccessManager {
 	}
 
 	private boolean shouldRotatorWait(RotatorType rotatorType) {
-		// Czeka jeśli ktoś ogląda kostkę lub chce oglądać
-		// lub obracajce wątki z nim kolidują
-		// lub czekają wątki obracające w kolidujący z nim sposób.
+		// Waits if someone is inspecting the cube
+		// or wants to inspect it
+		// or working threads are rotating the cube in colliding way
+		// or there are colliding waiting rotators.
 		return workingInspectorsCount > 0
 				|| waitingInspectorsCount > 0
 				|| (workingRotatorType != null && workingRotatorType != rotatorType)
@@ -182,13 +178,13 @@ public class AccessManager {
 	public void removeWorkingRotatorInfo() {
 		--workingRotatorsCount;
 		if (workingRotatorsCount == 0) {
-			// ostatni obracający
+			// the last working rotator
 			workingRotatorType = null;
 		}
 	}
 
 	private boolean shouldInspectorWait() {
-		// Czeka jeśli ktoś obraca lub chce obracać.
+		// Waits if someone is rotating or wants to rotate.
 		return workingRotatorsCount > 0 || waitingRotatorsTotalCount > 0;
 	}
 

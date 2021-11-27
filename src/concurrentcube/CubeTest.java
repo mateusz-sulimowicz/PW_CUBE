@@ -19,8 +19,8 @@ public class CubeTest {
 
 	private Cube cube;
 
-	// Licznik do sprawdzania czy wszystkie
-	// czekające wątki się doczekały i skończyły pracę
+	// Counter that enables checking whether all waiting threads
+	// finally accessed cube and finished their work.
 	AtomicInteger waitingThreadsCount = new AtomicInteger(0);
 
 	@BeforeEach
@@ -474,9 +474,9 @@ public class CubeTest {
 
 	private static final int ROTATION_TRIES = 100;
 
-	// Sprawdza, czy po dużej liczbie obrotów,
-	// na kostce dalej jest size * size
-	// kwadratów każdego koloru.
+	// Checks, whether after many rotation
+	// cube still contains correct numbers of squares
+	// of every color.
 	@Test
 	public void shouldCubeHaveSameNumbersOfTilesAsSolved() {
 		// given
@@ -596,9 +596,9 @@ public class CubeTest {
 	}
 
 	/**
-	 * Pomocnicza klasa do liczenia ilości
-	 * równocześnie występujących wątków każdej z grup
-	 * w sekcji krytycznej.
+	 * Helper class to enable monitoring
+	 * what types of workers have concurrent access
+	 * to the cube.
 	 */
 	private static class CubeAccessData {
 
