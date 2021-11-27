@@ -340,7 +340,6 @@ public class CubeTest {
 	private static final int CUBE_SIZE = 42;
 	private static final int WORKER_TYPES = 7;
 
-	@Test
 	@RepeatedTest(DEADLOCK_TEST_ATTEMPTS)
 	public void shouldNotDeadlock() {
 		cube = new Cube(CUBE_SIZE,
@@ -375,7 +374,6 @@ public class CubeTest {
 			}
 	}
 
-	@Test
 	@RepeatedTest(DEADLOCK_TEST_ATTEMPTS)
 	public void shouldNotDeadlockWhenInterruptedRotators() {
 		cube = new Cube(CUBE_SIZE,
@@ -413,7 +411,6 @@ public class CubeTest {
 
 	}
 
-	@Test
 	@RepeatedTest(DEADLOCK_TEST_ATTEMPTS)
 	public void shouldNotDeadlockWhenInterruptedInspectors() {
 		cube = new Cube(CUBE_SIZE,
@@ -454,7 +451,6 @@ public class CubeTest {
 
 	private static final int SECURITY_TEST_ATTEMPTS = 420;
 
-	@Test
 	@RepeatedTest(SECURITY_TEST_ATTEMPTS)
 	public void shouldNotViolateCubeAccess() {
 		CubeAccessData accessData = new CubeAccessData();
@@ -496,7 +492,6 @@ public class CubeTest {
 	// Checks, whether after many rotation
 	// cube still contains correct numbers of squares
 	// of every color.
-	@Test
 	@RepeatedTest(ROTATION_TRIES)
 	public void shouldCubeHaveSameNumbersOfTilesAsSolved() {
 		// given
