@@ -19,6 +19,8 @@ public class CubeTest {
 
 	private Cube cube;
 
+	// Licznik do sprawdzania czy wszystkie
+	// czekające wątki się doczekały i skończyły pracę
 	AtomicInteger waitingThreadsCount = new AtomicInteger(0);
 
 	@BeforeEach
@@ -99,7 +101,7 @@ public class CubeTest {
 					+ "5555";
 
 	@Test
-	public void shouldPassValidation() {
+	public void shouldPassValidationSequential() {
 		try {
 			cube.rotate(2, 0);
 			cube.rotate(5, 1);
@@ -140,7 +142,7 @@ public class CubeTest {
 					+ "5255";
 
 	@Test
-	public void shouldRotateLeft1Sequential() {
+	public void shouldRotateLeft1LayerSequential() {
 		try {
 			cube.rotate(1, 1);
 			Assertions.assertEquals(cube.show(), LEFT1_EXPECTED);
@@ -180,7 +182,7 @@ public class CubeTest {
 					+ "5555";
 
 	@Test
-	public void shouldRotateBack2Sequential() {
+	public void shouldRotateBack2LayerSequential() {
 		try {
 			cube.rotate(4, 2);
 			Assertions.assertEquals(cube.show(), BACK2_EXPECTED);
@@ -220,7 +222,7 @@ public class CubeTest {
 					+ "5255";
 
 	@Test
-	public void shouldRotateLeft1Back2Sequential() {
+	public void shouldRotateLeft1Back2LayersSequential() {
 		try {
 			cube.rotate(1, 1);
 			cube.rotate(4, 2);
@@ -260,7 +262,7 @@ public class CubeTest {
 					+ "5525";
 
 	@Test
-	public void shouldRotateFront2Left2Bottom1() {
+	public void shouldRotateFront2Left2Bottom1LayersSequential() {
 		try {
 			cube.rotate(2, 2);
 			cube.rotate(1, 2);
