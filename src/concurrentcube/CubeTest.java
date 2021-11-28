@@ -70,6 +70,70 @@ public class CubeTest {
 		}
 	}
 
+	@Test
+	public void shouldShowSolvedCubeAfterCyclicRotations() {
+		try {
+			for (int i = 0; i < 2520; i++) {
+				cube.rotate(3, 0);
+				cube.rotate(0, 0);
+				cube.rotate(0, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+				cube.rotate(4, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+				cube.rotate(5, 0);
+			}
+			Assertions.assertEquals(cube.show(), SOLVED_EXPECTED);
+		} catch (InterruptedException ignored) {
+		}
+	}
+
+	private static final String LEFT2_TOP3_BOTTOM2_FRONT0_BACK0_EXPECTED =
+			"4234"
+					+ "0000"
+					+ "4444"
+					+ "0000"
+
+					+ "0202"
+					+ "0544"
+					+ "0111"
+					+ "0202"
+
+					+ "3333"
+					+ "1111"
+					+ "2202"
+					+ "3333"
+
+					+ "4545"
+					+ "2205"
+					+ "3335"
+					+ "4545"
+
+					+ "1431"
+					+ "1531"
+					+ "1431"
+					+ "1431"
+
+					+ "5555"
+					+ "2222"
+					+ "5555"
+					+ "2412";
+
+	@Test
+	public void shouldRotateLeft2Top3Bottom2Top0Back0() {
+		try {
+			cube.rotate(1, 2);
+			cube.rotate(0, 3);
+			cube.rotate(5, 2);
+			cube.rotate(0, 0);
+			cube.rotate(4, 0);
+			Assertions.assertEquals(cube.show(), LEFT2_TOP3_BOTTOM2_FRONT0_BACK0_EXPECTED);
+		} catch (InterruptedException ignored) {}
+	}
+
+
 	private static final String VALIDATION_EXPECTED =
 			"0000"
 					+ "0000"
@@ -191,26 +255,6 @@ public class CubeTest {
 		}
 	}
 
-	@Test
-	public void shouldShowSolvedCubeAfterCyclicRotations() {
-		try {
-			for (int i = 0; i < 1260; i++) {
-				cube.rotate(3, 0);
-				cube.rotate(0, 0);
-				cube.rotate(0, 0);
-				cube.rotate(5, 0);
-				cube.rotate(5, 0);
-				cube.rotate(5, 0);
-				cube.rotate(4, 0);
-				cube.rotate(5, 0);
-				cube.rotate(5, 0);
-				cube.rotate(5, 0);
-			}
-			Assertions.assertEquals(cube.show(), SOLVED_EXPECTED);
-		} catch (InterruptedException ignored) {
-		}
-	}
-
 	private static final String LEFT1_BACK2_EXPECTED =
 			"0400"
 					+ "0400"
@@ -306,7 +350,7 @@ public class CubeTest {
 		// when
 		try {
 			startThreads(parallel, parallelCounterClockwise);
-			joinThreads(5000, parallel, parallelCounterClockwise);
+			joinThreads(100, parallel, parallelCounterClockwise);
 
 			// then
 			Assertions.assertEquals(cube.show(), getSolvedCube(PARALLEL_ROTATORS, 0).show());
@@ -327,7 +371,7 @@ public class CubeTest {
 		// when
 		try {
 			startThreads(inspectors);
-			joinThreads(5000, inspectors);
+			joinThreads(100, inspectors);
 
 			// then
 			Assertions.assertEquals(cube.show(), SOLVED_EXPECTED);
@@ -349,27 +393,27 @@ public class CubeTest {
 				waitingThreadsCount::decrementAndGet);
 
 		// given
-			List<Thread> inspectors = getInspectors(CUBE_SIZE);
-			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
-			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+		List<Thread> inspectors = getInspectors(CUBE_SIZE);
+		List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+		rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
-			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+		List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+		rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
-			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+		List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+		rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			waitingThreadsCount.set(CUBE_SIZE * WORKER_TYPES);
+		waitingThreadsCount.set(CUBE_SIZE * WORKER_TYPES);
 
-			// when
-			try {
-				startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
-				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+		// when
+		try {
+			startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+			joinThreads(100, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 
-				// then
-				Assertions.assertEquals(0, waitingThreadsCount.intValue());
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
+			// then
+			Assertions.assertEquals(0, waitingThreadsCount.intValue());
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 				System.out.println("Main thread interrupted!");
 			}
 	}
@@ -381,27 +425,27 @@ public class CubeTest {
 				(x, y) -> {},
 				() -> {},
 				() -> waitingThreadsCount.decrementAndGet());
-			// given
-			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+		// given
+		List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
-			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
-			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+		List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+		rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
-			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+		List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+		rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
-			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+		List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+		rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			List<Thread> toInterrupt = getParallelRotators(2, CUBE_SIZE);
+		List<Thread> toInterrupt = getParallelRotators(2, CUBE_SIZE);
 
-			waitingThreadsCount.set(CUBE_SIZE);
+		waitingThreadsCount.set(CUBE_SIZE);
 
-			// when
-			try {
-				startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
-				interruptAll(toInterrupt);
-				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+		// when
+		try {
+			startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+			interruptAll(toInterrupt);
+			joinThreads(100, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 
 				// then
 				Assertions.assertEquals(0, waitingThreadsCount.intValue());
@@ -420,26 +464,26 @@ public class CubeTest {
 				() -> {});
 
 		// given
-			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+		List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
-			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
-			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+		List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+		rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
-			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+		List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+		rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
-			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+		List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+		rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			List<Thread> toInterrupt = getInspectors(CUBE_SIZE);
+		List<Thread> toInterrupt = getInspectors(CUBE_SIZE);
 
-			waitingThreadsCount.set(CUBE_SIZE * (WORKER_TYPES - 1));
+		waitingThreadsCount.set(CUBE_SIZE * (WORKER_TYPES - 1));
 
-			// when
-			try {
-				startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
-				interruptAll(toInterrupt);
-				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+		// when
+		try {
+			startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+			interruptAll(toInterrupt);
+			joinThreads(50, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 
 				// then
 				Assertions.assertEquals(0, waitingThreadsCount.intValue());
@@ -462,26 +506,26 @@ public class CubeTest {
 				accessData::notifyInspectorExit);
 
 		// given
-			List<Thread> inspectors = getInspectors(CUBE_SIZE);
+		List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
-			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
-			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+		List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+		rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
-			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+		List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+		rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
-			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+		List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+		rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
-			List<Thread> toInterrupt = getInspectors(CUBE_SIZE);
+		List<Thread> toInterrupt = getInspectors(CUBE_SIZE);
 
-			// when
-			try {
-				startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
-				interruptAll(toInterrupt);
-				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+		// when
+		try {
+			startThreads(toInterrupt, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+			interruptAll(toInterrupt);
+			joinThreads(50, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 
-				// then
+			// then
 				Assertions.assertFalse(accessData.isSecurityViolated());
 			} catch (InterruptedException ignored) {
 			}
@@ -500,19 +544,19 @@ public class CubeTest {
 
 		// when
 		try {
-				List<Thread> inspectors = getInspectors(CUBE_SIZE);
+			List<Thread> inspectors = getInspectors(CUBE_SIZE);
 
-				List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
-				rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
+			List<Thread> rotatorsXY = getParallelRotators(2, CUBE_SIZE);
+			rotatorsXY.addAll(getParallelRotators(4, CUBE_SIZE));
 
-				List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
-				rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
+			List<Thread> rotatorsXZ = getParallelRotators(0, CUBE_SIZE);
+			rotatorsXZ.addAll(getParallelRotators(5, CUBE_SIZE));
 
-				List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
-				rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
+			List<Thread> rotatorsYZ = getParallelRotators(1, CUBE_SIZE);
+			rotatorsYZ.addAll(getParallelRotators(3, CUBE_SIZE));
 
 				startThreads(inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
-				joinThreads(1000, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
+				joinThreads(50, inspectors, rotatorsXZ, rotatorsXY, rotatorsYZ);
 
 			// then
 			String cubeRepresentation = cube.show();
