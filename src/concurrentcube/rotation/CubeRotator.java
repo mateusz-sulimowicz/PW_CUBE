@@ -33,7 +33,7 @@ public class CubeRotator {
 		beforeRotation.accept(side, layer);
 		rotateCube(side, layer);
 		afterRotation.accept(side, layer);
-		accessManager.onRotatorExit(side, layer);
+		accessManager.onAfterRotation(side, layer);
 	}
 
 	private void rotateCube(int side, int layer) {

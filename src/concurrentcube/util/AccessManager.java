@@ -71,17 +71,16 @@ public class AccessManager {
 			getRotationLayerLock(side, layer).lockInterruptibly();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			onAfterRotation(side, layer);
+			onRotatorExit();
 		}
 	}
 
-	private void onAfterRotation(int side, int layer) throws InterruptedException {
+	public void onAfterRotation(int side, int layer) throws InterruptedException {
 		getRotationLayerLock(side, layer).unlock();
+		onRotatorExit();
 	}
 
-	public void onRotatorExit(int side, int layer) throws InterruptedException {
-		onAfterRotation(side, layer);
-
+	public void onRotatorExit() throws InterruptedException {
 		lock.lock();
 		removeWorkingRotatorInfo();
 		notifyAllIfCubeIsUnoccupied();
